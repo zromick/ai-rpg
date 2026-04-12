@@ -9,7 +9,9 @@ Each player has their own isolated story context, memory, and universe.
 
 ## Requirements
 
-- [Rust](https://rustup.rs/) (stable, 1.70+)
+- Rust (stable, 1.70+)
+- Visual Studio Build Tools (Required for Windows)
+  - During installation, check the box for 'Desktop development with C++'.
 - A free HuggingFace account + API token
 
 ---
@@ -18,13 +20,14 @@ Each player has their own isolated story context, memory, and universe.
 
 ### 1. Get a HuggingFace API token (free)
 
-1. Sign up at https://huggingface.co
-2. Go to **Settings → Access Tokens**
-3. Create a token with **"Read"** permission (free tier)
+- Install Rust and Build Tools, if necessary.
 
 ### 2. Set your API key
 
-Create a `.env` file in the project root:
+1. Sign up at https://huggingface.co
+2. Go to **Settings → Access Tokens**
+3. Create a token with **"Read"** permission (free tier)
+4. Create a `.env` file in the project root:
 
 ```
 HF_API_KEY=hf_yourtoken

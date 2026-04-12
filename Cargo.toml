@@ -1,0 +1,14 @@
+[package]
+name = "beggars_to_crowns"
+version = "0.1.0"
+edition = "2021"
+description = "AI-powered multi-player RPG — Beggars to Crowns"
+
+[dependencies]
+reqwest = { version = "0.11", features = ["blocking", "json"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+dotenvy = "0.15"
+
+[profile.release]
+opt-level = 3

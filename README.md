@@ -26,7 +26,6 @@ Each player has their own isolated story context.
 ### 2. Build the game
 
 ```bash
-cd beggars_to_crowns
 cargo build --release
 ```
 

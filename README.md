@@ -4,62 +4,117 @@ Written with the help of Claude Sonnet 4.6.
 
 A terminal-based multi-player RPG powered by the HuggingFace Inference API.
 Each player has their own isolated story context, memory, and universe.
-
----
+An optional React frontend provides a live dashboard with AI-generated scene images.
 
 ## Requirements
 
-- Rust (stable, 1.70+)
-- Visual Studio Build Tools (Required for Windows)
-  - During installation, check the box for 'Desktop development with C++'.
+- [Rust](https://rustup.rs/) 1.85+ (for edition 2024)
+- [Node.js](https://nodejs.org/) 18+
 - A free HuggingFace account + API token
 
 ---
 
 ## Setup
 
-### 1. Get a HuggingFace API token (free)
-
-- Install Rust and Build Tools, if necessary.
-
-### 2. Set your API key
+### 1. Get a HuggingFace API token
 
 1. Sign up at https://huggingface.co
 2. Go to **Settings → Access Tokens**
 3. Create a token with **"Read"** permission (free tier)
-4. Create a `.env` file in the project root:
+
+### 2. Set your API key
+
+Create `.env` in the project root:
 
 ```
 HF_API_KEY=hf_yourtoken
 ```
 
-Or set it as an environment variable:
-
-```bash
-export HF_API_KEY=hf_yourtoken   # Linux / macOS
-set HF_API_KEY=hf_yourtoken      # Windows CMD
-```
-
-### 3. Build and run
+### 3. Build and run the Rust game
 
 ```bash
 cargo build --release
 cargo run --release
 ```
 
+### 4. Run the frontend (separate terminal)
+
+```bash
+cd frontend
+npm install
+npm start        # starts bridge server on :3001 AND Vite on :5173
+```
+
+Open **http://localhost:5173**
+
 ---
 
-## Launch flow
+## Gameplay — Rust terminal
 
-When you start the game you will be walked through these steps in order:
+Walk through the setup screens (model → scenario → rules → players), then play:
 
-1. **Model selection** — choose from 11 available HuggingFace models
-2. **Scenario selection** — pick one of the available story scenarios (press `H` to inspect any scenario's full details before choosing)
-3. **Scenario rule configuration** — toggle per-scenario rules ON/OFF
-4. **Universal rule configuration** — adjust shared GM rules including difficulty, response length, and side quests
-5. **Player setup** — enter 1–8 player names
-6. **Quest summary** — your main quest and any active side quests are displayed before the game begins
-7. **Opening scenes** — each player receives their own opening scene from the AI
+### Commands
+
+| Command | Effect |
+|---------|--------|
+| `quest` | Show main quest (win condition) |
+| `sidequests` / `sq` | Show active side quests |
+| `character` / `char` | View and edit your character features |
+| `stats` | Full prompt log with character counts |
+| `restart` | Wipe current player's history, replay opening scene |
+| `title` | Return to title screen for a new game |
+| `switch <name>` | Jump to another player's turn |
+| `quit` / `exit` | End the game |
+
+### Character editor (via `character` command)
+
+```
+set age        old and weathered
+set clothing   stolen nobleman's coat
+set scar       a brand on the left forearm
+set nickname   The Crow          ← custom field, any name you want
+unset nickname                   ← removes custom fields only
+```
+
+Changes are saved immediately to `game_state.json` and reflected in the frontend.
+
+---
+
+## Frontend — browser UI
+
+The browser UI mirrors the Rust terminal and adds visual context.
+
+### Features
+
+- **Scene images** — generated after every GM reply using the character's exact
+  appearance + the first sentence of the GM's response. Free, no key required.
+- **Interactive input** — type commands directly in the browser. Local commands
+  (`quest`, `sidequests`, `sq`, `stats`, `help`) are handled in the UI instantly.
+  **Note:** the browser cannot currently _send_ new actions to the Rust game — you
+  still type actions in the Rust terminal. The input box is for local commands and
+  future write-endpoint support.
+- **Typewriter effect** — new GM responses type themselves out
+- **Multi-player tabs** — switch between players' views
+- **Image engine picker** — swap image styles in the topbar dropdown
+- **Live polling** — auto-refreshes every 2s when `game_state.json` changes
+
+### Image engines
+
+All engines are **free with no API key**. They are all Pollinations.ai variants
+(the only free image API that works as a plain `<img src="...">`):
+
+| Engine | Style |
+|--------|-------|
+| Flux (default) | Best quality, FLUX model |
+| Flux Schnell | Faster, slightly lower quality |
+| Turbo | Fastest, SD Turbo backend |
+| Dark Fantasy | Brooding oil-painting atmosphere |
+| Painterly | Impressionist brushstroke texture |
+| Anime | Illustrated anime / manga aesthetic |
+| Portrait Focus | Tight character face crop |
+| Ink Sketch | Pen-and-ink etching style |
+| Widescreen Scene | Wide cinematic environment shot |
+| Lorem Picsum | Random scenic photo (layout testing) |
 
 ---
 
@@ -67,82 +122,48 @@ When you start the game you will be walked through these steps in order:
 
 | # | Title | Premise |
 |---|-------|---------|
-| 1 | Beggars to Crowns | Rise from a nameless Beggar to be crowned King of Aethelgard |
-| 2 | Shipwrecked on the Obsidian Shore | Survive a hostile volcanic island — escape, or conquer it |
-| 3 | The Haunted Precinct | A 1920s detective unravels supernatural murders in a cursed city |
-| 4 | Void Merchant | Trade and scheme across a dying star system aboard a salvage freighter |
+| 1 | Beggars to Crowns | Rise from a nameless Beggar to King of Aethelgard |
+| 2 | Shipwrecked on the Obsidian Shore | Survive a volcanic island — escape or conquer |
+| 3 | The Haunted Precinct | 1920s detective unravels supernatural murders |
+| 4 | Void Merchant | Trade and scheme across a dying star system |
 
 ---
 
-## In-game commands
+## Universal GM rules (configurable before play)
 
-| Command | Effect |
-|---------|--------|
-| `quest` | Display your main quest (win condition) |
-| `sidequests` / `sq` | Display all active side quests |
-| `stats` | Show full prompt log with character counts for all players |
-| `restart` | Wipe current player's history and restart from the opening scene |
-| `title` | Return to the title screen and start a new setup |
-| `switch <name>` | Jump to a specific player's turn |
-| `quit` / `exit` | End the game and show final stats |
-
-Commands are intercepted locally and never sent to the AI.
-
----
-
-## Universal GM rules (configurable)
-
-These rules apply to every scenario and can be toggled or adjusted before play begins:
-
-| Rule | Default | Type |
-|------|---------|------|
-| Immersive Narration | ON | Boolean |
-| Real Consequences | ON | Boolean |
-| Stat Tracking | ON | Boolean |
-| No Dice / No Attributes (not D&D) | ON | Boolean |
-| Player Controls Only Main Character | ON | Boolean |
-| NPC Memory & Agendas | ON | Boolean |
-| Time Passes Realistically | ON | Boolean |
-| No Action Choices at Turn End | ON | Boolean |
-| Difficulty / World Hostility | 14 — Apocalyptic | Level 1–15 |
-| Response Length | 15 — Mythic (no limit) | Level 1–15 |
-| Side Quests | 0 — Disabled | Level 0–10 |
-
-**Difficulty levels** range from Level 1 (Gentle — mistakes are recoverable) to Level 15 (Impossible — designed to be lost). Default is **14 (Apocalyptic)** — resources near zero, every scene potentially fatal.
-
-**Response Length** levels range from Level 1 (~50 words, terse) to Level 15 (Mythic — no word limit). Default is **15**.
-
-**Side Quests** — setting this to any level 1–10 randomly selects that many side quests from a pool of 10 and adds them as mandatory win conditions. All players in a session share the same side quests.
+| Rule | Default |
+|------|---------|
+| Immersive Narration | ON |
+| Real Consequences | ON |
+| Stat Tracking | ON |
+| No Dice / No Attributes (not D&D) | ON |
+| Player Controls Only Main Character | ON |
+| NPC Memory & Agendas | ON |
+| Time Passes Realistically | ON |
+| No Action Choices at Turn End | ON |
+| Difficulty / World Hostility | 14 — Apocalyptic |
+| Response Length | 15 — Mythic (no limit) |
+| Side Quests | 0 — Disabled (set 1–10 to enable) |
 
 ---
 
-## Models
+## Available AI models
 
 | Model | Notes |
 |-------|-------|
-| `meta-llama/Llama-3.1-8B-Instruct` *(default)* | Strong storytelling, generous free tier |
+| `meta-llama/Llama-3.1-8B-Instruct` *(default)* | Best storytelling on free tier |
 | `meta-llama/Llama-3.2-3B-Instruct` | Lighter and faster |
-| `google/gemma-2-9b-it` | Google's instruction-tuned model |
+| `google/gemma-2-9b-it` | Google instruction-tuned |
 | `mistralai/Mistral-7B-Instruct-v0.3` | Reliable and efficient |
-| `mistralai/Mistral-Nemo-Instruct-2407` | Mistral's newer Nemo series |
-| `HuggingFaceH4/zephyr-7b-beta` | Fine-tuned for helpfulness |
+| `mistralai/Mistral-Nemo-Instruct-2407` | Mistral Nemo series |
+| `HuggingFaceH4/zephyr-7b-beta` | Fine-tuned for instruction following |
 | `NousResearch/Hermes-3-Llama-3.1-8B` | Nous Research fine-tune |
 | `chaldene/Llama-3.1-8B-Instruct-Abliterated` | Uncensored variant |
 | `mistralai/Mixtral-8x7B-Instruct-v0.1` | Mixture-of-experts, high quality |
 | `microsoft/Phi-3-medium-128k-instruct` | Long context window |
-| `Qwen/Qwen2.5-7B-Instruct` | Alibaba's multilingual model |
+| `Qwen/Qwen2.5-7B-Instruct` | Alibaba multilingual model |
 
-All models use the HuggingFace Router (`https://router.huggingface.co/v1/chat/completions`).
-
----
-
-## Adding scenarios and rules
-
-**New scenario** — add a new `StoryPrompt` to the `story_prompts()` function in `src/prompts.rs`. Every scenario requires: `title`, `description`, `system_instructions`, `setting_details`, `opening_scene`, `user_condition`, `user_inventory`, `scenario_rules`, and `win_conditions`.
-
-**New side quest** — push a new `SideQuest { title, description }` into `side_quest_pool()` in `src/prompts.rs`.
-
-**New universal rule** — add a `CommonRuleDef` to `common_rule_definitions()` in `src/prompts.rs`. Boolean rules toggle ON/OFF; Level rules present a 1–N picker.
+All models use `https://router.huggingface.co/v1/chat/completions`.
 
 ---
 
@@ -150,27 +171,102 @@ All models use the HuggingFace Router (`https://router.huggingface.co/v1/chat/co
 
 ### Isolated player universes
 
-Each player has a `PlayerSession` with their own `history: Vec<Message>`. When a player takes a turn, only *their* history is sent to the API. Player A's AI has no knowledge of Player B's actions.
+Each player has a `PlayerSession` with their own `history: Vec<Message>`. Only
+that player's history is sent to the API per turn. Player A's AI has no knowledge
+of Player B's choices.
 
 ### What the AI sees
 
-On the first turn, the AI receives:
+1. A **system message** — the output of `build_system_prompt()`: scenario
+   instructions, setting, active rules, starting inventory, win conditions, side quests
+2. A **first user message** — tells the GM to deliver the opening scene verbatim
+3. On subsequent turns — the player's action injected with their character description
 
-1. A **system message** — the full output of `build_system_prompt()`, containing scenario instructions, setting details, starting inventory, active rules, win conditions, and any side quests
-2. A hardcoded **first user message** — instructing the GM to deliver the opening scene verbatim
+### What the AI does not see
 
-### What the AI does NOT see
+- The player's name (UI only)
+- Other players' sessions
+- Commands (`quest`, `stats`, `restart`, etc.) — intercepted before the API call
+- Empty inputs
+- All setup menus and config screens
 
-- The player's name (used only in the local UI)
-- Other players' sessions or actions
-- Any command typed (`quit`, `stats`, `restart`, etc.) — these are intercepted before reaching the API
-- Empty inputs — skipped locally, not forwarded
-- All setup menus and configuration screens
+### Character features and images
+
+Each player gets randomly generated `CharacterFeatures` on creation (seeded per
+player so they're unique). The features compile into a natural-language
+`image_prompt` string stored in `game_state.json`. After every GM reply, the
+frontend combines this with the first sentence of the GM's response to form an
+image prompt, then fetches a 768×512 image from Pollinations.ai. The character
+seed is derived from the player's name hash so the same player gets a visually
+consistent character across turns.
 
 ### Side quests
 
-Side quests are picked **once** at setup using a time-seeded Fisher-Yates shuffle (no external crates). The same list is embedded in every player's system prompt, so all players share identical side quest objectives even though their story paths diverge.
+Picked **once** at setup with a time-seeded Fisher-Yates shuffle. The same list
+is embedded in every player's system prompt so all players share identical
+objectives even though their story paths diverge.
 
-### Prompt log
+---
 
-Every prompt you send is recorded in full (not truncated) with its character count and sequence number. Type `stats` to review the complete history.
+## Project structure
+
+```
+beggars_to_crowns/
+│
+├── Cargo.toml                  ← Rust dependencies (edition 2024)
+├── .env                        ← HF_API_KEY=hf_yourtoken  (you create this)
+├── game_state.json             ← Live data file written by Rust, read by frontend
+│
+├── src/
+│   ├── main.rs                 ← Game engine, CLI, character system, state writer
+│   └── prompts.rs              ← Scenarios, rules, side quests, system prompt builder
+│
+└── frontend/
+    ├── index.html              ← Vite HTML entry
+    ├── package.json            ← npm dependencies and scripts
+    ├── tsconfig.json           ← TypeScript config (ES2022, bundler, .ts + .tsx)
+    ├── vite.config.ts          ← Vite + React plugin + proxy to bridge server
+    │
+    ├── server/
+    │   ├── index.ts            ← Express bridge server (reads game_state.json)
+    │   └── tsconfig.json       ← Separate TS config for Node/ESM server
+    │
+    └── src/
+        ├── main.tsx            ← React entry point
+        ├── App.tsx             ← Root component, layout, state
+        ├── App.css             ← Full stylesheet (dark medieval aesthetic)
+        ├── types.ts            ← Shared TypeScript interfaces
+        ├── imageServices.ts    ← 10 image generation service definitions
+        │
+        ├── hooks/
+        │   ├── useGameState.ts       ← Polls /api/state every 2s
+        │   └── useCharacterImage.ts  ← Builds and loads scene images
+        │
+        └── components/
+            ├── Terminal.tsx          ← Narrative log + interactive input box
+            ├── CharacterPanel.tsx    ← AI scene image + character feature table
+            ├── QuestPanel.tsx        ← Main quest + side quests sidebar
+            ├── PlayerTabs.tsx        ← Multi-player tab switcher
+            └── ServicePicker.tsx     ← Image engine dropdown (topbar)
+```
+
+---
+
+## What is game_state.json?
+
+`game_state.json` lives in the **project root** (next to `Cargo.toml`). It is
+written automatically by the Rust game after every GM reply and every character
+edit. You never edit it manually.
+
+It contains the current full game state: all players, their conversation
+histories, character features, image prompts, quest data, and a timestamp.
+
+The frontend **cannot read files directly** (browsers are sandboxed), so the
+tiny Express bridge server in `frontend/server/index.ts` reads the file on disk
+and serves it over HTTP at `http://localhost:3001/api/state`. The React app polls
+that endpoint every 2 seconds. When the timestamp changes, the UI updates.
+
+Think of it as a poor-man's WebSocket: Rust writes → file → bridge reads →
+React polls. No socket setup required.
+
+---

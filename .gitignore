@@ -1,2 +1,32 @@
+# --- Rust (Cargo) ---
+# https://github.com/github/gitignore/blob/main/Rust.gitignore
+/target/
+**/*.rs.bk
+*.pdb
+
+# --- React / Node ---
+# https://github.com
+node_modules/
+dist/
+build/
+.eslintcache
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# --- Environment Variables ---
 .env
-target/
+*.env.local
+.env.*.local
+
+# --- IDEs / Editors ---
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# --- Misc ---
+game_state.json

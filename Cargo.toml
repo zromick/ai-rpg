@@ -1,14 +1,19 @@
 [package]
-name = "beggars_to_crowns"
+name = "ai_rpg"
 version = "0.1.0"
-edition = "2021"
+edition = "2024"
 description = "AI-powered multi-player RPG — Beggars to Crowns"
+
+[[bin]]
+name = "ai_rpg"
+path = "src/main.rs"
 
 [dependencies]
 reqwest = { version = "0.11", features = ["blocking", "json"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 dotenvy = "0.15"
+chrono = { version = "0.4", features = ["serde"] }
 
 [profile.release]
 opt-level = 3

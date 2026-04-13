@@ -1,0 +1,46 @@
+{
+  "active_player": "Norbus",
+  "main_quest": "You escape the island aboard a seaworthy vessel, OR you are accepted as chief by all three tribes and rule the island.",
+  "model": "meta-llama/Llama-3.1-8B-Instruct",
+  "players": [
+    {
+      "character_features": {
+        "age": "mid 30s",
+        "build": "wiry",
+        "clothing": "filthy rags",
+        "distinguishing": "striking bone structure",
+        "expression": "watchful and guarded",
+        "eye_color": "blue",
+        "gender": "male",
+        "hair_color": "bald",
+        "hair_style": "unkempt",
+        "height": "very tall",
+        "scars": "a notched ear",
+        "skin_tone": "tan"
+      },
+      "history": [
+        {
+          "content": "Begin the game. Deliver the opening scene exactly as written in your instructions. Describe the environment vividly with full sensory detail. The player's character has the following appearance: mid 30s male person, wiry, very tall, bald unkempt hair, blue eyes, tan skin, wearing filthy rags, expression: watchful and guarded, with a notched ear, striking bone structure. Weave their appearance naturally into the scene where appropriate. Address the player as 'you'.",
+          "role": "user"
+        },
+        {
+          "content": "Salt water fills your mouth as a wave slams you into black volcanic sand. The ship – gone. Around you: splintered hull planks, a soaked bedroll, a rusted knife still in its sheath. The bedroll, once a dull brown, now clings to your wet skin like a soggy shroud, stinging your skin with every movement. You feel the weight of exhaustion and the stinging pain in your side where the ship's splintered hull struck you. The tan skin on your cheeks is smeared with the faint smell of engine oil and the acrid tang of saltwater. A thick patch of wiry black hair on your chest is damp and clinging to your skin, and a rough stubble covers your jawline, adding to the overall air of neglect that clings to you like a shroud.\n\nYour piercing blue eyes scan the surroundings, taking in the jagged rocks and splintered wood debris scattered around the shore. The air is heavy with the smell of saltwater and decaying seaweed, and the sound of waves crashing against the shore creates a soothing melody that's been interrupted by the sound of the ship's splintering timbers and screams.\n\nYou look down at your hands, noticing the sharpness of your calloused fingers and the roughness of your skin, a testament to years of hard labor and rough living. A small, jagged notch in your left ear catches your eye, a souvenir from a long-forgotten bar fight. The memory stings, and you mentally push it aside as you assess your situation.\n\nYour eyes flicker towards the tree line, thirty feet away, where the palms sway gently in the breeze. Something is watching you from the shadows between the palms. You can't quite make out what it is, but the hairs on the back of your neck stand on end, and your heart rate quickens.\n\nThe sun is two hours from setting, casting a golden glow over the chaotic scene. The sky above is a deep, foreboding grey, with clouds that seem to stretch on forever. The air is heavy with the promise of rain, and you can taste the electric charge in the air.\n\nWhat do you do first?",
+          "role": "assistant"
+        }
+      ],
+      "image_prompt": "mid 30s male person, wiry, very tall, bald unkempt hair, blue eyes, tan skin, wearing filthy rags, expression: watchful and guarded, with a notched ear, striking bone structure",
+      "last_gm_reply": "Salt water fills your mouth as a wave slams you into black volcanic sand. The ship – gone. Around you: splintered hull planks, a soaked bedroll, a rusted knife still in its sheath. The bedroll, once a dull brown, now clings to your wet skin like a soggy shroud, stinging your skin with every movement. You feel the weight of exhaustion and the stinging pain in your side where the ship's splintered hull struck you. The tan skin on your cheeks is smeared with the faint smell of engine oil and the acrid tang of saltwater. A thick patch of wiry black hair on your chest is damp and clinging to your skin, and a rough stubble covers your jawline, adding to the overall air of neglect that clings to you like a shroud.\n\nYour piercing blue eyes scan the surroundings, taking in the jagged rocks and splintered wood debris scattered around the shore. The air is heavy with the smell of saltwater and decaying seaweed, and the sound of waves crashing against the shore creates a soothing melody that's been interrupted by the sound of the ship's splintering timbers and screams.\n\nYou look down at your hands, noticing the sharpness of your calloused fingers and the roughness of your skin, a testament to years of hard labor and rough living. A small, jagged notch in your left ear catches your eye, a souvenir from a long-forgotten bar fight. The memory stings, and you mentally push it aside as you assess your situation.\n\nYour eyes flicker towards the tree line, thirty feet away, where the palms sway gently in the breeze. Something is watching you from the shadows between the palms. You can't quite make out what it is, but the hairs on the back of your neck stand on end, and your heart rate quickens.\n\nThe sun is two hours from setting, casting a golden glow over the chaotic scene. The sky above is a deep, foreboding grey, with clouds that seem to stretch on forever. The air is heavy with the promise of rain, and you can taste the electric charge in the air.\n\nWhat do you do first?",
+      "name": "Norbus",
+      "prompt_count": 0,
+      "total_chars": 0
+    }
+  ],
+  "scenario": "Shipwrecked on the Obsidian Shore",
+  "side_quests": [
+    {
+      "description": "You owe a dangerous moneylender 50 gold. Before you can win, you must repay this debt in full — or eliminate the lender and erase all evidence of the loan.",
+      "title": "The Debt Collector"
+    }
+  ],
+  "updated_at": "2026-04-13T22:15:15.660348100+00:00"
+}

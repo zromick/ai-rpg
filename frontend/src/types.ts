@@ -13,12 +13,30 @@ export interface CharacterFeatures {
   clothing: string
   expression: string
   distinguishing: string
-  [key: string]: string // custom fields
+  [key: string]: string
 }
 
 export interface HistoryMessage {
   role: 'user' | 'assistant'
   content: string
+}
+
+export interface InventoryItem {
+  name: string
+  quantity: string
+  note: string
+}
+
+export interface SideCharacter {
+  name: string
+  description: string
+  relation: string
+}
+
+export interface Location {
+  name: string
+  description: string
+  last_visited: string
 }
 
 export interface PlayerState {
@@ -28,6 +46,10 @@ export interface PlayerState {
   last_gm_reply: string
   image_prompt: string
   character_features: CharacterFeatures
+  inventory: InventoryItem[]
+  side_characters: SideCharacter[]
+  locations: Location[]
+  turn: number
   history: HistoryMessage[]
 }
 
@@ -37,6 +59,7 @@ export interface SideQuest {
 }
 
 export interface GameState {
+  session_id: string
   scenario: string
   model: string
   main_quest: string

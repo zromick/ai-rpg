@@ -1,6 +1,7 @@
 // src/components/CharacterPanel.tsx
-import { useCharacterImage } from '../hooks/UseCharacterImage'
+import { useState, useEffect } from 'react'
 import type { PlayerState, ImageService } from '../types'
+import { useCharacterImage } from '../hooks/UseCharacterImage'
 
 interface Props {
   player: PlayerState
@@ -14,69 +15,135 @@ const CORE_FIELDS = [
 ]
 
 export function CharacterPanel({ player, seed, service }: Props) {
-  const { url, loading, error } = useCharacterImage(
-    player.image_prompt,
-    player.last_gm_reply,
-    seed,
-    service,
-  )
+  const { url } = useCharacterImage(player.image_prompt, player.last_gm_reply, seed, service)
+  const [imgState, setImgState] = useState<'loading' | 'loaded' | 'error'>('loading')
+  const [activeTab, setActiveTab] = useState<'features' | 'inventory' | 'characters' | 'locations'>('features')
 
-  const custom = Object.entries(player.character_features).filter(
-    ([k]) => !CORE_FIELDS.includes(k)
-  )
+  // Reset loading state when URL changes
+  useEffect(() => { if (url) setImgState('loading') }, [url])
+
+  const custom = Object.entries(player.character_features).filter(([k]) => !CORE_FIELDS.includes(k))
 
   return (
     <div className="char-panel">
-      {/* Image viewport */}
+      {/* ── Image ── */}
       <div className="char-image-wrap">
-        {loading && (
+        {(!url || imgState === 'loading') && (
           <div className="char-image-placeholder">
             <span className="sigil">⚗</span>
-            <p>Conjuring scene…</p>
+            <p>{url ? 'Generating scene…' : 'Awaiting first turn…'}</p>
           </div>
         )}
-        {error && (
+        {imgState === 'error' && (
           <div className="char-image-placeholder error">
             <span className="sigil">✕</span>
-            <p>{error}</p>
+            <p>Image failed — try a different engine</p>
           </div>
         )}
-        {url && !loading && (
+        {url && (
           <img
+            key={url}
             src={url}
             alt={`${player.name} in action`}
             className="char-image"
+            style={{ display: imgState === 'loaded' ? 'block' : 'none' }}
+            onLoad={() => setImgState('loaded')}
+            onError={() => setImgState('error')}
           />
         )}
         <div className="char-image-caption">
           <span>{player.name}</span>
-          {loading && <span className="badge loading">generating…</span>}
+          {imgState === 'loading' && url && <span className="badge loading">generating…</span>}
         </div>
       </div>
 
-      {/* Feature table */}
-      <div className="char-features">
-        <h3 className="features-title">Character</h3>
-        <table className="feature-table">
-          <tbody>
-            {CORE_FIELDS.map(key => {
-              const val = player.character_features[key]
-              if (!val || val === 'none') return null
-              return (
-                <tr key={key}>
-                  <td className="feat-key">{key.replace('_', ' ')}</td>
-                  <td className="feat-val">{val}</td>
+      {/* ── Tab bar ── */}
+      <div className="char-tabs">
+        {(['features','inventory','characters','locations'] as const).map(tab => (
+          <button
+            key={tab}
+            className={`char-tab ${activeTab === tab ? 'char-tab--active' : ''}`}
+            onClick={() => setActiveTab(tab)}
+          >
+            {{ features:'👤', inventory:'🎒', characters:'👥', locations:'🗺' }[tab]}
+            <span className="char-tab-label">{tab}</span>
+          </button>
+        ))}
+      </div>
+
+      {/* ── Tab content ── */}
+      <div className="char-tab-content">
+        {activeTab === 'features' && (
+          <table className="feature-table">
+            <tbody>
+              {CORE_FIELDS.map(key => {
+                const val = player.character_features[key]
+                if (!val || val === 'none') return null
+                return (
+                  <tr key={key}>
+                    <td className="feat-key">{key.replace('_', ' ')}</td>
+                    <td className="feat-val">{val}</td>
+                  </tr>
+                )
+              })}
+              {custom.map(([k, v]) => (
+                <tr key={k} className="custom-row">
+                  <td className="feat-key">{k.replace('_', ' ')}</td>
+                  <td className="feat-val">{v}</td>
                 </tr>
-              )
-            })}
-            {custom.map(([k, v]) => (
-              <tr key={k} className="custom-row">
-                <td className="feat-key">{k.replace('_', ' ')}</td>
-                <td className="feat-val">{v}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+              ))}
+            </tbody>
+          </table>
+        )}
+
+        {activeTab === 'inventory' && (
+          <div className="world-list">
+            {player.inventory.length === 0
+              ? <p className="world-empty">No items yet</p>
+              : player.inventory.map((item, i) => (
+                  <div key={i} className="world-item">
+                    <span className="world-item-name">{item.name}</span>
+                    <span className="world-item-qty">×{item.quantity}</span>
+                    {item.note && <span className="world-item-note">{item.note}</span>}
+                  </div>
+                ))
+            }
+          </div>
+        )}
+
+        {activeTab === 'characters' && (
+          <div className="world-list">
+            {player.side_characters.length === 0
+              ? <p className="world-empty">No characters met yet</p>
+              : player.side_characters.map((c, i) => (
+                  <div key={i} className="world-item world-item--char">
+                    <div className="world-item-header">
+                      <span className="world-item-name">{c.name}</span>
+                      <span className={`world-item-relation relation--${c.relation}`}>{c.relation}</span>
+                    </div>
+                    <span className="world-item-note">{c.description}</span>
+                  </div>
+                ))
+            }
+          </div>
+        )}
+
+        {activeTab === 'locations' && (
+          <div className="world-list">
+            {player.locations.length === 0
+              ? <p className="world-empty">No locations visited yet</p>
+              : player.locations.map((l, i) => (
+                  <div key={i} className="world-item world-item--loc">
+                    <div className="world-item-header">
+                      <span className="world-item-name">{l.name}</span>
+                      <span className="world-item-turn">turn {l.last_visited}</span>
+                    </div>
+                    <span className="world-item-note">{l.description}</span>
+                  </div>
+                ))
+            }
+          </div>
+        )}
       </div>
     </div>
   )

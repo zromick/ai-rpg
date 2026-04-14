@@ -1,6 +1,5 @@
 // src/App.tsx
 import { useState, useEffect } from 'react'
-import { useGameState } from './hooks/useGameState'
 import { CharacterPanel } from './components/CharacterPanel'
 import { Terminal } from './components/Terminal'
 import { QuestPanel } from './components/QuestPanel'
@@ -8,6 +7,7 @@ import { PlayerTabs } from './components/PlayerTabs'
 import { ServicePicker } from './components/ServicePicker'
 import { getService, DEFAULT_SERVICE_ID } from './imageServices'
 import type { ImageService } from './types'
+import { useGameState } from './hooks/UseGameState'
 
 function nameSeed(name: string): number {
   let h = 0
@@ -16,9 +16,9 @@ function nameSeed(name: string): number {
 }
 
 export default function App() {
-  const { state, error, loading } = useGameState()
-  const [selectedPlayer, setSelectedPlayer] = useState<string>('')
-  const [imageService, setImageService]     = useState<ImageService>(getService(DEFAULT_SERVICE_ID))
+  const { state, error, loading, sendCommand } = useGameState()
+  const [selectedPlayer, setSelectedPlayer]    = useState<string>('')
+  const [imageService, setImageService]        = useState<ImageService>(getService(DEFAULT_SERVICE_ID))
 
   useEffect(() => {
     if (state?.active_player) {
@@ -28,7 +28,7 @@ export default function App() {
     }
   }, [state?.active_player])
 
-  // ── Splash: waiting for game ──────────────────────────────────────────────
+  // ── Splash ────────────────────────────────────────────────────────────────
   if (loading && !state) {
     return (
       <div className="splash">
@@ -36,9 +36,7 @@ export default function App() {
           <div className="crown-glyph">♛</div>
           <h1 className="splash-title">Beggars to Crowns</h1>
           <p className="splash-sub">Waiting for the Rust game to start…</p>
-          <p className="splash-hint">
-            Run <code>cargo run --release</code> in the project root, then begin a game.
-          </p>
+          <p className="splash-hint">Run <code>cargo run --release</code> in the project root.</p>
           {error && <p className="splash-error">{error}</p>}
         </div>
       </div>
@@ -62,21 +60,8 @@ export default function App() {
   const player = state.players.find(p => p.name === selectedPlayer) ?? state.players[0]
   if (!player) return null
 
-  const seed = nameSeed(player.name)
-
-  // onAction: the bridge server is read-only so we can't send commands from the
-  // frontend to Rust. Instead we show a hint directing the user to the terminal.
-  // If you later add a write endpoint to the bridge, wire it here.
-  function handleAction(text: string) {
-    console.info('[UI] Action submitted (use Rust terminal to advance game):', text)
-    // No-op for now — the note in Terminal.tsx explains this limitation.
-    // The input IS useful for local commands (quest, stats, etc.) which are
-    // handled inside Terminal before this callback is reached.
-  }
-
   return (
     <div className="app">
-      {/* ── Topbar ── */}
       <header className="topbar">
         <div className="topbar-left">
           <span className="topbar-crown">♛</span>
@@ -90,7 +75,6 @@ export default function App() {
         </div>
       </header>
 
-      {/* ── Player tabs (multi-player only) ── */}
       {state.players.length > 1 && (
         <PlayerTabs
           players={state.players}
@@ -100,7 +84,6 @@ export default function App() {
         />
       )}
 
-      {/* ── Three-column layout ── */}
       <main className="layout">
         <aside className="col-left">
           <QuestPanel
@@ -119,25 +102,26 @@ export default function App() {
             sideQuests={state.side_quests}
             promptCount={player.prompt_count}
             totalChars={player.total_chars}
-            onAction={handleAction}
+            inventory={player.inventory}
+            sideCharacters={player.side_characters}
+            locations={player.locations}
+            sendCommand={sendCommand}
           />
         </section>
 
         <aside className="col-right">
-          <CharacterPanel player={player} seed={seed} service={imageService} />
+          <CharacterPanel player={player} seed={nameSeed(player.name)} service={imageService} />
         </aside>
       </main>
 
-      {/* ── Status bar ── */}
       <footer className="statusbar">
+        <span>Turn <strong>{player.turn}</strong></span>
         <span>Prompts: <strong>{player.prompt_count}</strong></span>
         <span>Chars: <strong>{player.total_chars}</strong></span>
         <span className="statusbar-sep">│</span>
         <span>Active: <strong>{state.active_player}</strong></span>
         <span className="statusbar-sep">│</span>
-        <span className="statusbar-updated">
-          {new Date(state.updated_at).toLocaleTimeString()}
-        </span>
+        <span className="statusbar-updated">{new Date(state.updated_at).toLocaleTimeString()}</span>
       </footer>
     </div>
   )

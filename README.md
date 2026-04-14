@@ -9,8 +9,15 @@ An optional React frontend provides a live dashboard with AI-generated scene ima
 ## Requirements
 
 - [Rust](https://rustup.rs/) 1.85+ (for edition 2024)
-- [Node.js](https://nodejs.org/) 18+
-- A free HuggingFace account + API token
+- C++ Build Tools (Required for the linker):
+  - Windows: [Visual Studio Build Tools](https://visualstudio.microsoft.com/downloads/#:~:text=Build%20Tools%20for%20Visual%20Studio (Check 'Desktop development with C++')
+  - macOS: `xcode-select --install`
+  - Linux:
+    - Ubuntu/Debian: `sudo apt install build-essential`
+    - Fedora: `sudo dnf groupinstall "Development Tools"`
+    - Arch: `sudo pacman -S base-devel`
+- [Node.js](https://nodejs.org/) 24+
+- A free [HuggingFace](https://huggingface.co) account + API token
 
 ---
 

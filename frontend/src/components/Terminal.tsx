@@ -1,215 +1,182 @@
 // src/components/Terminal.tsx
 import { useEffect, useRef, useState, KeyboardEvent } from 'react'
-import type { HistoryMessage, SideQuest } from '../types'
+import type { HistoryMessage, SideQuest, InventoryItem, SideCharacter, Location } from '../types'
 
-// Commands that are handled locally in the UI, never forwarded to the Rust game
-const LOCAL_COMMANDS = ['quest', 'sidequests', 'sidequest', 'sq', 'stats', 'help', '?']
-
-export interface LocalCommandResult {
-  type: 'quest' | 'sidequests' | 'stats' | 'help'
-}
+// Commands resolved locally in the UI
+const LOCAL_CMDS = new Set(['quest','sidequests','sidequest','sq','stats','inventory','inv','characters','chars','npcs','locations','locs','map','help','?'])
 
 interface Props {
   history: HistoryMessage[]
   playerName: string
   isActive: boolean
-  // Quest/side quest data for local command display
   mainQuest: string
   sideQuests: SideQuest[]
   promptCount: number
   totalChars: number
-  // Called when user submits an action to forward to the Rust game
-  // (bridge does NOT accept writes — this is displayed locally as a pending message)
-  onAction?: (text: string) => void
+  inventory: InventoryItem[]
+  sideCharacters: SideCharacter[]
+  locations: Location[]
+  /** Sends text to the Rust game via the bridge. Returns true if queued. */
+  sendCommand: (player: string, text: string) => Promise<boolean>
 }
 
-interface LocalMessage {
-  kind: 'local'
-  content: string
-}
-
-type DisplayMessage =
-  | { kind: 'history'; msg: HistoryMessage; index: number }
-  | LocalMessage
+interface LocalMsg { kind: 'local'; content: string }
+interface PendingMsg { kind: 'pending'; content: string }
+type ExtraMsg = LocalMsg | PendingMsg
 
 export function Terminal({
-  history,
-  playerName,
-  isActive,
-  mainQuest,
-  sideQuests,
-  promptCount,
-  totalChars,
-  onAction,
+  history, playerName, isActive,
+  mainQuest, sideQuests, promptCount, totalChars,
+  inventory, sideCharacters, locations,
+  sendCommand,
 }: Props) {
-  const bottomRef   = useRef<HTMLDivElement>(null)
-  const inputRef    = useRef<HTMLInputElement>(null)
-  const [inputVal, setInputVal]       = useState('')
-  const [localMsgs, setLocalMsgs]     = useState<LocalMessage[]>([])
-  const [cmdHistory, setCmdHistory]   = useState<string[]>([])
-  const [histIdx, setHistIdx]         = useState(-1)
+  const bottomRef  = useRef<HTMLDivElement>(null)
+  const inputRef   = useRef<HTMLInputElement>(null)
+  const [val, setVal]           = useState('')
+  const [extra, setExtra]       = useState<ExtraMsg[]>([])
+  const [cmdHist, setCmdHist]   = useState<string[]>([])
+  const [histIdx, setHistIdx]   = useState(-1)
+  const [sending, setSending]   = useState(false)
 
-  // Auto-scroll on new messages
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [history, localMsgs])
-
-  // Focus input when this player's tab is active
-  useEffect(() => {
-    if (isActive) inputRef.current?.focus()
-  }, [isActive])
+  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [history, extra])
+  useEffect(() => { if (isActive) inputRef.current?.focus() }, [isActive])
 
   function pushLocal(content: string) {
-    setLocalMsgs(prev => [...prev, { kind: 'local', content }])
+    setExtra(prev => [...prev, { kind: 'local', content }])
   }
 
-  function handleLocalCommand(raw: string): boolean {
-    const cmd = raw.trim().toLowerCase()
-    if (!LOCAL_COMMANDS.some(c => cmd === c || cmd.startsWith(c + ' '))) return false
+  function resolveLocal(cmd: string): boolean {
+    const c = cmd.trim().toLowerCase()
+    if (!LOCAL_CMDS.has(c)) return false
 
-    if (cmd === 'quest') {
+    if (c === 'quest') {
       pushLocal(`♛ MAIN QUEST\n${mainQuest}`)
-      return true
-    }
-    if (cmd === 'sidequests' || cmd === 'sidequest' || cmd === 'sq') {
-      if (sideQuests.length === 0) {
-        pushLocal('⚔ SIDE QUESTS\nNo side quests are active.')
-      } else {
-        const lines = sideQuests.map((q, i) => `[${i + 1}] ${q.title}\n    ${q.description}`).join('\n')
-        pushLocal(`⚔ SIDE QUESTS\n${lines}`)
-      }
-      return true
-    }
-    if (cmd === 'stats') {
-      pushLocal(`📊 STATS — ${playerName}\nPrompts: ${promptCount}  ·  Total chars: ${totalChars}`)
-      return true
-    }
-    if (cmd === 'help' || cmd === '?') {
+    } else if (c === 'sidequests' || c === 'sidequest' || c === 'sq') {
+      if (sideQuests.length === 0) pushLocal('⚔ SIDE QUESTS\nNo side quests active.')
+      else pushLocal(`⚔ SIDE QUESTS\n${sideQuests.map((q,i) => `[${i+1}] ${q.title}\n    ${q.description}`).join('\n')}`)
+    } else if (c === 'stats') {
+      pushLocal(`📊 STATS — ${playerName}\nPrompts: ${promptCount}  ·  Chars: ${totalChars}`)
+    } else if (c === 'inventory' || c === 'inv') {
+      if (inventory.length === 0) pushLocal('🎒 INVENTORY\n(empty)')
+      else pushLocal(`🎒 INVENTORY\n${inventory.map(i => `• ${i.name} ×${i.quantity}${i.note ? '  — '+i.note : ''}`).join('\n')}`)
+    } else if (c === 'characters' || c === 'chars' || c === 'npcs') {
+      if (sideCharacters.length === 0) pushLocal('👥 CHARACTERS\n(none met yet)')
+      else pushLocal(`👥 CHARACTERS\n${sideCharacters.map(c => `• ${c.name} [${c.relation}]\n  ${c.description}`).join('\n')}`)
+    } else if (c === 'locations' || c === 'locs' || c === 'map') {
+      if (locations.length === 0) pushLocal('🗺 LOCATIONS\n(none visited yet)')
+      else pushLocal(`🗺 LOCATIONS\n${locations.map(l => `• ${l.name} (turn ${l.last_visited})\n  ${l.description}`).join('\n')}`)
+    } else if (c === 'help' || c === '?') {
       pushLocal(
-        `COMMANDS\n` +
-        `  quest          — show main quest\n` +
-        `  sidequests/sq  — show side quests\n` +
-        `  stats          — show your prompt stats\n` +
-        `  help / ?       — this list\n` +
-        `\n` +
-        `  (all other input is sent to the GM)`
+        'COMMANDS\n' +
+        '  quest           — main quest\n' +
+        '  sidequests/sq   — side quests\n' +
+        '  inventory/inv   — your items\n' +
+        '  characters/npcs — people met\n' +
+        '  locations/map   — places visited\n' +
+        '  stats           — prompt stats\n' +
+        '  character/char  — edit appearance\n' +
+        '  restart         — restart from opening\n' +
+        '  title           — return to title\n' +
+        '  quit            — end game\n' +
+        '  (anything else is sent to the GM)'
       )
-      return true
     }
-    return false
+    return true
   }
 
-  function handleSubmit() {
-    const text = inputVal.trim()
-    if (!text) return
-
-    setCmdHistory(prev => [text, ...prev].slice(0, 50))
+  async function handleSubmit() {
+    const text = val.trim()
+    if (!text || sending) return
+    setCmdHist(prev => [text, ...prev].slice(0, 50))
     setHistIdx(-1)
-    setInputVal('')
+    setVal('')
 
-    if (!handleLocalCommand(text)) {
-      // Not a local command — show it as a pending user message and notify parent
-      onAction?.(text)
+    if (resolveLocal(text)) return
+
+    // Send to Rust via bridge
+    setSending(true)
+    setExtra(prev => [...prev, { kind: 'pending', content: text }])
+    const ok = await sendCommand(playerName, text)
+    setSending(false)
+    if (!ok) {
+      setExtra(prev => [...prev, { kind: 'local', content: '⚠ Failed to send — is the bridge server running?' }])
     }
   }
 
   function handleKeyDown(e: KeyboardEvent<HTMLInputElement>) {
-    if (e.key === 'Enter') { handleSubmit(); return }
-    // Arrow up/down for command history
+    if (e.key === 'Enter') { void handleSubmit(); return }
     if (e.key === 'ArrowUp') {
       e.preventDefault()
-      const next = Math.min(histIdx + 1, cmdHistory.length - 1)
-      setHistIdx(next)
-      setInputVal(cmdHistory[next] ?? '')
+      const next = Math.min(histIdx + 1, cmdHist.length - 1)
+      setHistIdx(next); setVal(cmdHist[next] ?? '')
     }
     if (e.key === 'ArrowDown') {
       e.preventDefault()
       const next = Math.max(histIdx - 1, -1)
-      setHistIdx(next)
-      setInputVal(next === -1 ? '' : (cmdHistory[next] ?? ''))
+      setHistIdx(next); setVal(next === -1 ? '' : (cmdHist[next] ?? ''))
     }
   }
-
-  // Merge history + local messages in display order
-  const displayItems: DisplayMessage[] = [
-    ...history.map((msg, index): DisplayMessage => ({ kind: 'history', msg, index })),
-    ...localMsgs.map((lm): DisplayMessage => lm),
-  ]
 
   return (
     <div className={`terminal ${isActive ? 'terminal--active' : ''}`}>
       <div className="terminal-header">
         <span className="terminal-player">{playerName}</span>
         {isActive && <span className="terminal-active-badge">● ACTIVE TURN</span>}
+        {sending && <span className="terminal-sending">⟳ sending…</span>}
       </div>
 
       <div className="terminal-body">
-        {displayItems.length === 0 && (
+        {history.length === 0 && extra.length === 0 && (
           <p className="terminal-empty">Awaiting opening scene…</p>
         )}
-        {displayItems.map((item, i) => {
-          if (item.kind === 'local') {
-            return (
-              <div key={`local-${i}`} className="terminal-msg terminal-msg--local">
-                <pre className="local-text">{item.content}</pre>
-              </div>
-            )
-          }
-          const { msg, index } = item
-          if (msg.role === 'user') {
-            return (
-              <div key={`h-${index}`} className="terminal-msg terminal-msg--user">
-                <span className="terminal-prompt">
-                  <span className="prompt-symbol">{'>'}</span>
-                  <span className="prompt-text">{msg.content}</span>
-                </span>
-              </div>
-            )
-          }
-          return (
-            <div key={`h-${index}`} className="terminal-msg terminal-msg--assistant">
-              <TypewriterText
-                text={msg.content}
-                isNew={index === history.length - 1}
-              />
-            </div>
-          )
-        })}
+
+        {history.map((msg, i) => (
+          <div key={`h${i}`} className={`terminal-msg terminal-msg--${msg.role}`}>
+            {msg.role === 'user'
+              ? <span className="terminal-prompt"><span className="prompt-symbol">{'>'}</span><span className="prompt-text">{msg.content}</span></span>
+              : <TypewriterText text={msg.content} isNew={i === history.length - 1} />
+            }
+          </div>
+        ))}
+
+        {extra.map((m, i) => (
+          <div key={`e${i}`} className={`terminal-msg terminal-msg--${m.kind}`}>
+            {m.kind === 'pending'
+              ? <span className="terminal-prompt pending"><span className="prompt-symbol">{'>'}</span><span className="prompt-text">{m.content}</span><span className="pending-dots">…</span></span>
+              : <pre className="local-text">{m.content}</pre>
+            }
+          </div>
+        ))}
         <div ref={bottomRef} />
       </div>
 
-      {/* Input row */}
       <div className="terminal-input-row">
         <span className="input-prompt-symbol">{'>'}</span>
         <input
           ref={inputRef}
           className="terminal-input"
           type="text"
-          value={inputVal}
-          onChange={e => setInputVal(e.target.value)}
+          value={val}
+          onChange={e => setVal(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder={isActive ? 'Type an action or command…' : `${playerName}'s turn — switch to interact`}
+          placeholder={sending ? 'Waiting for response…' : 'Type an action or command (help for list)…'}
+          disabled={sending}
           spellCheck={false}
           autoComplete="off"
-          autoCorrect="off"
         />
         <button
           className="terminal-send-btn"
-          onClick={handleSubmit}
-          disabled={!inputVal.trim()}
+          onClick={() => void handleSubmit()}
+          disabled={!val.trim() || sending}
           title="Send (Enter)"
-        >
-          ↵
-        </button>
+        >↵</button>
       </div>
     </div>
   )
 }
 
-// Typewriter effect only on the latest GM message
 function TypewriterText({ text, isNew }: { text: string; isNew: boolean }) {
   const ref = useRef<HTMLParagraphElement>(null)
-
   useEffect(() => {
     if (!isNew || !ref.current) return
     const el = ref.current
@@ -222,7 +189,6 @@ function TypewriterText({ text, isNew }: { text: string; isNew: boolean }) {
     }, 12)
     return () => clearInterval(id)
   }, [text, isNew])
-
   if (!isNew) return <p className="gm-text">{text}</p>
   return <p className="gm-text" ref={ref} />
 }

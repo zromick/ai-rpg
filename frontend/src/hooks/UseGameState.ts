@@ -1,41 +1,49 @@
-// src/hooks/useGameState.ts
 import { useEffect, useState, useRef, useCallback } from 'react'
-import type { GameState } from '../types'
+import type { GameState, SetupState } from '../types'
 
 const POLL_MS = 1500
 
 export function useGameState() {
-  const [state, setState]     = useState<GameState | null>(null)
-  const [error, setError]     = useState<string | null>(null)
-  const [loading, setLoading] = useState(true)
-  const lastUpdated           = useRef<string>('')
-  const lastSessionId         = useRef<string>('')
+  const [gameState, setGameState]   = useState<GameState | null>(null)
+  const [setupState, setSetupState] = useState<SetupState | null>(null)
+  const [error, setError]           = useState<string | null>(null)
+  const [loading, setLoading]       = useState(true)
+  const lastUpdated                 = useRef('')
+  const lastSessionId               = useRef('')
+  const lastSetupAt                 = useRef('')
 
   useEffect(() => {
     let cancelled = false
-
     async function poll() {
       try {
-        const res = await fetch('/api/state')
-        if (!res.ok) {
-          const err = await res.json() as { error?: string }
-          if (!cancelled) { setError(err.error ?? 'Unknown error'); setLoading(false) }
+        // Poll setup state (shown when no game running)
+        if (!gameState) {
+          const sr = await fetch('/api/setup')
+          if (sr.ok) {
+            const sd = await sr.json() as SetupState
+            if (!cancelled && sd.updated_at !== lastSetupAt.current) {
+              lastSetupAt.current = sd.updated_at
+              setSetupState(sd)
+              setLoading(false)
+            }
+          }
+        }
+        // Poll game state
+        const gr = await fetch('/api/state')
+        if (!gr.ok) {
+          if (!cancelled && !gameState) setLoading(false)
           return
         }
-        const data = await res.json() as GameState
-
+        const gd = await gr.json() as GameState
         if (cancelled) return
-
-        // New cargo run detected — reset everything
-        if (data.session_id !== lastSessionId.current) {
-          lastSessionId.current = data.session_id
+        if (gd.session_id !== lastSessionId.current) {
+          lastSessionId.current = gd.session_id
           lastUpdated.current   = ''
-          setState(null)        // briefly clear so App shows splash
+          setGameState(null)
         }
-
-        if (data.updated_at !== lastUpdated.current) {
-          lastUpdated.current = data.updated_at
-          setState(data)
+        if (gd.updated_at !== lastUpdated.current) {
+          lastUpdated.current = gd.updated_at
+          setGameState(gd)
           setError(null)
           setLoading(false)
         }
@@ -43,25 +51,17 @@ export function useGameState() {
         if (!cancelled) setError('Bridge server unreachable — run: npm run server')
       }
     }
-
     poll()
     const id = setInterval(poll, POLL_MS)
     return () => { cancelled = true; clearInterval(id) }
-  }, [])
+  }, [gameState])
 
-  // Send a command to the Rust game via the bridge
   const sendCommand = useCallback(async (player: string, text: string): Promise<boolean> => {
     try {
-      const res = await fetch('/api/command', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ player, text }),
-      })
-      return res.ok
-    } catch {
-      return false
-    }
+      const r = await fetch('/api/command', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ player, text }) })
+      return r.ok
+    } catch { return false }
   }, [])
 
-  return { state, error, loading, sendCommand }
+  return { gameState, setupState, error, loading, sendCommand }
 }

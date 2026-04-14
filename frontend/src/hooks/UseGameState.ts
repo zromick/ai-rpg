@@ -31,7 +31,15 @@ export function useGameState() {
         // Poll game state
         const gr = await fetch('/api/state')
         if (!gr.ok) {
-          if (!cancelled && !gameState) setLoading(false)
+          if (!cancelled) {
+            if (gameState) {
+              // Game state file was removed (e.g. title/restart) — reset to show setup
+              setGameState(null)
+              lastUpdated.current = ''
+              lastSessionId.current = ''
+            }
+            setLoading(false)
+          }
           return
         }
         const gd = await gr.json() as GameState

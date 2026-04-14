@@ -146,6 +146,7 @@ pub struct CommonRuleSetting {
 struct GameState {
     model: String,
     main_quest: String,
+    main_quest_steps: Vec<String>,
     side_quests: Vec<SideQuest>,
     scenario_title: String,
     session_id: String,
@@ -223,12 +224,13 @@ fn write_state(gs: &GameState, sessions: &HashMap<String, PlayerSession>, active
             "history": s.history.iter().filter(|m| m.role != "system").collect::<Vec<_>>(),
         })
     }).collect();
-    let sqs: Vec<Value> = gs.side_quests.iter().map(|q| json!({"title":q.title,"description":q.description})).collect();
+    let sqs: Vec<Value> = gs.side_quests.iter().map(|q| json!({"title":q.title,"description":q.description,"steps":q.steps})).collect();
     let payload = json!({
         "session_id": gs.session_id,
         "scenario": gs.scenario_title,
         "model": gs.model,
         "main_quest": gs.main_quest,
+        "main_quest_steps": gs.main_quest_steps,
         "side_quests": sqs,
         "active_player": active,
         "settings": gs.settings,
@@ -466,6 +468,7 @@ fn build_game_from_setup(payload: &SetupPayload, key: &str, client: &Client) -> 
     let gs = GameState {
         model: payload.model.clone(),
         main_quest: story.win_conditions.to_string(),
+        main_quest_steps: story.main_quest_steps.iter().map(|s| s.to_string()).collect(),
         side_quests,
         scenario_title: story.title.to_string(),
         session_id,
@@ -503,6 +506,16 @@ fn apply_settings_update(gs: &mut GameState, sessions: &mut HashMap<String, Play
                 entry.current_level = input.current_level;
             }
         }
+
+        // Check if side quest count changed and re-pick if needed
+        let new_sq_count = rule_set.entries.iter().find(|e| e.label == "Side Quests")
+            .map(|e| if e.active { e.current_level as usize } else { 0 }).unwrap_or(0);
+        let old_sq_count = gs.side_quests.len();
+        if new_sq_count != old_sq_count {
+            gs.side_quests = pick_side_quests(new_sq_count);
+            eprintln!("[settings] Side quests changed: {} → {}", old_sq_count, new_sq_count);
+        }
+
         // Rebuild system prompt
         let scenarios = story_prompts();
         if let Some(story) = scenarios.iter().find(|s| s.title == gs.scenario_title) {
@@ -554,26 +567,26 @@ fn opening_scene(client: &Client, key: &str, gs: &GameState, session: &mut Playe
 
 fn process_action(client: &Client, key: &str, gs: &GameState, sessions: &mut HashMap<String, PlayerSession>, name: &str, input: &str) {
     match input.trim().to_lowercase().as_str() {
-        "quest" => { println!("♛ MAIN QUEST\n{}", gs.main_quest); return; }
+        "quest"|"q" => { println!("♛ MAIN QUEST\n{}", gs.main_quest); return; }
         "sidequests"|"sidequest"|"sq" => {
             if gs.side_quests.is_empty() { println!("No side quests active."); }
             else { for (i,q) in gs.side_quests.iter().enumerate() { println!("[{}] {}\n    {}", i+1, q.title, q.description); } }
             return;
         }
-        "stats" => {
+        "stats"|"s" => {
             for s in sessions.values() { println!("Player: {} | Prompts: {} | Chars: {}", s.stats.name, s.stats.prompt_count, s.stats.total_chars); }
             return;
         }
         "inventory"|"inv" => { if let Some(s) = sessions.get(name) { for i in &s.world.inventory { println!("• {} x{} — {}", i.name, i.quantity, i.note); } } return; }
-        "characters"|"chars"|"npcs" => { if let Some(s) = sessions.get(name) { for c in &s.world.side_characters { println!("• {} [{}]: {}", c.name, c.relation, c.description); } } return; }
+        "characters"|"chars"|"npcs"|"n" => { if let Some(s) = sessions.get(name) { for c in &s.world.side_characters { println!("• {} [{}]: {}", c.name, c.relation, c.description); } } return; }
         "locations"|"locs"|"map" => { if let Some(s) = sessions.get(name) { for l in &s.world.locations { println!("• {} (turn {}): {}", l.name, l.last_visited, l.description); } } return; }
-        "settings" => {
+        "settings"|"se" => {
             println!("Model: {}", gs.model);
             println!("Scenario: {}", gs.scenario_title);
             for r in &gs.settings.common_rules { println!("  [{}] {} — active:{} lv:{}", r.label, r.kind, r.active, r.current_level); }
             return;
         }
-        "character"|"char" => {
+        "character"|"char"|"c" => {
             if let Some(s) = sessions.get_mut(name) {
                 loop {
                     println!("{}", serde_json::to_string_pretty(&s.character).unwrap_or_default());
@@ -660,8 +673,7 @@ fn game_loop(client: &Client, key: &str, gs: &mut GameState, sessions: &mut Hash
             let line = buf.trim().to_string();
             if line.is_empty() { continue; }
             match line.to_lowercase().as_str() {
-                "quit"|"exit" => { *exit_flag_stdin.lock().unwrap() = Some(false); break; }
-                "title"       => { *exit_flag_stdin.lock().unwrap() = Some(true);  break; }
+                "title"   => { *exit_flag_stdin.lock().unwrap() = Some(true);  break; }
                 _ => { stdin_cmds_t.lock().unwrap().push((first_player.clone(), line)); }
             }
         }
@@ -687,9 +699,8 @@ fn game_loop(client: &Client, key: &str, gs: &mut GameState, sessions: &mut Hash
             let text   = cmd.text.trim().to_string();
 
             match text.to_lowercase().as_str() {
-                "quit"|"exit" => { write_state(gs, sessions, &names[turn % names.len()]); return false; }
-                "title"       => { write_state(gs, sessions, &names[turn % names.len()]); return true; }
-                "restart"     => {
+                "title"   => { write_state(gs, sessions, &names[turn % names.len()]); return true; }
+                "restart" => {
                     if let Some(s) = sessions.get_mut(&player) { s.restart(); }
                     let mut sess = sessions.remove(&player).unwrap();
                     opening_scene(client, key, gs, &mut sess, sessions);

@@ -21,7 +21,7 @@ export interface PlayerState {
   turn: number; history: HistoryMessage[]
 }
 
-export interface SideQuest { title: string; description: string }
+export interface SideQuest { title: string; description: string; steps?: string[] }
 
 export interface ScenarioRuleSetting { label: string; description: string; enabled: boolean }
 export interface CommonRuleSetting {
@@ -35,7 +35,7 @@ export interface GameSettings {
 
 export interface GameState {
   session_id: string; scenario: string; model: string
-  main_quest: string; side_quests: SideQuest[]
+  main_quest: string; main_quest_steps?: string[]; side_quests: SideQuest[]
   active_player: string; players: PlayerState[]
   settings: GameSettings; updated_at: string
 }

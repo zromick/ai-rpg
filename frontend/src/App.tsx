@@ -50,6 +50,16 @@ export default function App() {
     await sendCommand(FAKE_SETUP_PLAYER, `__settings_update__ ${JSON.stringify(update)}`)
   }, [sendCommand])
 
+  const handleTitle = useCallback(async () => {
+    await sendCommand(FAKE_SETUP_PLAYER, 'title')
+  }, [sendCommand])
+
+  const handleRestart = useCallback(async () => {
+    if (!gameState) return
+    const player = gameState.players.find(p => p.name === selectedPlayer) ?? gameState.players[0]
+    if (player) await sendCommand(player.name, 'restart')
+  }, [sendCommand, gameState, selectedPlayer])
+
   // ── Splash: waiting for Rust ──────────────────────────────────────────────
   if (loading && !setupState && !gameState) {
     return (
@@ -113,7 +123,7 @@ export default function App() {
 
       <main className="layout">
         <aside className="col-left">
-          <QuestPanel mainQuest={gameState.main_quest} sideQuests={gameState.side_quests} scenario={gameState.scenario} />
+          <QuestPanel mainQuest={gameState.main_quest} mainQuestSteps={gameState.main_quest_steps} sideQuests={gameState.side_quests} scenario={gameState.scenario} />
         </aside>
         <section className="col-center">
           <Terminal
@@ -123,6 +133,9 @@ export default function App() {
             promptCount={player.prompt_count} totalChars={player.total_chars}
             inventory={player.inventory} sideCharacters={player.side_characters}
             locations={player.locations} sendCommand={sendCommand}
+            onOpenSettings={() => setShowSettings(true)}
+            onTitle={handleTitle}
+            onRestart={handleRestart}
           />
         </section>
         <aside className="col-right">

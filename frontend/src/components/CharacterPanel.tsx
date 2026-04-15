@@ -1,7 +1,7 @@
 // src/components/CharacterPanel.tsx
 import { useState, useEffect } from 'react'
+import { useCharacterImage } from '../hooks/useCharacterImage'
 import type { PlayerState, ImageService } from '../types'
-import { useCharacterImage } from '../hooks/UseCharacterImage'
 
 interface Props {
   player: PlayerState

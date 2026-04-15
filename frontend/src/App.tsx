@@ -1,15 +1,14 @@
 import { useState, useEffect, useCallback } from 'react'
-import { useGameState } from './hooks/useGameState'
 import { CharacterPanel } from './components/CharacterPanel'
 import { Terminal } from './components/Terminal'
 import { QuestPanel } from './components/QuestPanel'
 import { PlayerTabs } from './components/PlayerTabs'
 import { getService, DEFAULT_SERVICE_ID } from './imageServices'
 import type { ImageService } from './types'
-import type { SetupPayload } from './components/SetupWizard'
-import { SetupWizard } from './components/SetupWizard'
 import { ServicePicker } from './components/ServicePicker'
 import { SettingsPanel } from './components/SettingsPanel'
+import { useGameState } from './hooks/UseGameState'
+import { SetupPayload, SetupWizard } from './components/SetupWizard'
 
 function nameSeed(name: string): number {
   let h = 0; for (const c of name) h = (Math.imul(31, h) + c.charCodeAt(0)) | 0; return Math.abs(h)

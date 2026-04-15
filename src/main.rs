@@ -100,10 +100,10 @@ impl CharacterFeatures {
 pub struct InventoryItem { pub name: String, pub quantity: String, pub note: String }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
-pub struct SideCharacter { pub name: String, pub description: String, pub relation: String }
+pub struct SideCharacter { pub name: String, pub description: String, pub relation: String, pub outline_color: Option<String> }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
-pub struct Location { pub name: String, pub description: String, pub last_visited: u64 }
+pub struct Location { pub name: String, pub description: String, pub last_visited: u64, pub outline_color: Option<String> }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct WorldState {
@@ -283,7 +283,7 @@ fn extract(client: &Client, key: &str, model: &str, action: &str, reply: &str, w
 
     let sys = r#"You are a JSON extraction engine for an RPG. You receive game events and return ONLY a raw JSON object — no markdown, no code fences, no explanation. Any deviation from pure JSON will cause a system error."#;
 
-    let user = format!(r#"Player action: {action}
+    let user = format!(r##"Player action: {action}
 GM response: {reply}
 
 Current inventory JSON: {inv}
@@ -296,10 +296,10 @@ Produce this exact JSON (all fields required, use the exact field names shown):
     {{"name": "item name", "quantity": "number or description", "note": "condition or context"}}
   ],
   "side_characters": [
-    {{"name": "full name", "description": "2-sentence physical and personality description", "relation": "ally|enemy|neutral|unknown"}}
+    {{"name": "full name (first and last)", "description": "2-sentence physical and personality description", "relation": "ally|enemy|neutral|unknown", "outline_color": "#RRGGBB"}}
   ],
   "locations": [
-    {{"name": "place name", "description": "2-sentence description of this place", "last_visited": {turn}}}
+    {{"name": "place name", "description": "2-sentence description of this place", "last_visited": {turn}, "outline_color": "#RRGGBB"}}
   ],
   "clothing_update": "new clothing description" or null
 }}
@@ -311,7 +311,9 @@ Critical rules:
 4. last_visited must be the integer {turn}, not a string.
 5. clothing_update: set ONLY if clothing explicitly changed in this scene. Otherwise null (not the string "null").
 6. relation values must be exactly one of: ally, enemy, neutral, unknown.
-7. Return ONLY the JSON object starting with {{ — nothing before or after."#,
+7. outline_color: assign a RANDOM readable hex color (#RRGGBB format) to each character and location. Use varied but legible colors (avoid very dark or very light). Example: "#4a90d9", "#d97a4a", "#6bd94a", "#d94ab8", "#4ad9d1".
+8. Character names MUST include both first and last name when possible (e.g., "John Smith" not just "John").
+9. Return ONLY the JSON object starting with {{ — nothing before or after."##,
         action=action, reply=reply, inv=inv, chars=chars, locs=locs, turn=world.turn+1);
 
     let msgs = vec![

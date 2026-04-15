@@ -1,5 +1,5 @@
 // src/components/Terminal.tsx
-import { useEffect, useRef, useState, KeyboardEvent } from 'react'
+import { useEffect, useRef, useState, KeyboardEvent, ReactNode } from 'react'
 import type { HistoryMessage, SideQuest, InventoryItem, SideCharacter, Location } from '../types'
 
 const LOCAL_CMDS = new Set([
@@ -201,7 +201,7 @@ export function Terminal({ history, playerName, isActive, mainQuest, sideQuests,
               <div key={item.key} className={`terminal-msg terminal-msg--${item.msg.role}`}>
                 {item.msg.role === 'user'
                   ? <span className="terminal-prompt"><span className="prompt-symbol">{'>'}</span>{' '}<span className="prompt-text">{item.msg.content}</span></span>
-                  : <TypewriterText text={item.msg.content} isNew={i === renderItems.length - 1 && item.msg.role === 'assistant'} />
+                  : <TypewriterText text={item.msg.content} isNew={i === renderItems.length - 1 && item.msg.role === 'assistant'} characters={sideCharacters} locations={locations} />
                 }
               </div>
             )
@@ -246,8 +246,78 @@ export function Terminal({ history, playerName, isActive, mainQuest, sideQuests,
   )
 }
 
+// Highlight character/location names in GM text
+function highlightNames(text: string, characters: SideCharacter[], locations: Location[]): ReactNode {
+  // Build list of names to highlight with their colors
+  const highlights: Array<{ name: string; color: string | undefined }> = []
+
+  for (const c of characters) {
+    if (c.name) {
+      highlights.push({ name: c.name, color: c.outline_color })
+      // Also highlight first name and last name separately
+      const parts = c.name.split(/\s+/)
+      if (parts.length > 1) {
+        highlights.push({ name: parts[0], color: c.outline_color })
+        highlights.push({ name: parts[parts.length - 1], color: c.outline_color })
+      }
+    }
+  }
+  for (const l of locations) {
+    if (l.name) {
+      highlights.push({ name: l.name, color: l.outline_color })
+    }
+  }
+
+  // Sort by length (longest first) to match longer names first
+  highlights.sort((a, b) => b.name.length - a.name.length)
+
+  // Remove duplicates and substrings that would conflict
+  const seen = new Set<string>()
+  const uniqueHighlights = highlights.filter(h => {
+    const lower = h.name.toLowerCase()
+    if (seen.has(lower)) return false
+    seen.add(lower)
+    return true
+  })
+
+  // Build regex pattern
+  const names = uniqueHighlights.map(h => h.name).filter(n => n.length > 1)
+  if (names.length === 0) return text
+
+  const escaped = names.map(n => n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+  const pattern = new RegExp(`\\b(${escaped.join('|')})\\b`, 'gi')
+
+  // Split and rebuild with highlights
+  const parts: React.ReactNode[] = []
+  let lastEnd = 0
+  let match: RegExpExecArray | null
+
+  while ((match = pattern.exec(text)) !== null) {
+    if (match.index > lastEnd) {
+      parts.push(text.slice(lastEnd, match.index))
+    }
+    const matchedName = match[0]
+    const highlight = uniqueHighlights.find(h => h.name.toLowerCase() === matchedName.toLowerCase())
+    const style: React.CSSProperties = highlight?.color
+      ? { backgroundColor: `${highlight.color}20`, borderColor: highlight.color }
+      : {}
+    parts.push(
+      <span key={match.index} className="highlighted-name" style={style}>
+        {matchedName}
+      </span>
+    )
+    lastEnd = match.index + matchedName.length
+  }
+
+  if (lastEnd < text.length) {
+    parts.push(text.slice(lastEnd))
+  }
+
+  return parts.length > 0 ? parts : text
+}
+
 // Typewriter — 4ms per char (fast), full text on non-latest messages
-function TypewriterText({ text, isNew }: { text: string; isNew: boolean }) {
+function TypewriterText({ text, isNew, characters, locations }: { text: string; isNew: boolean; characters: SideCharacter[]; locations: Location[] }) {
   const ref = useRef<HTMLParagraphElement>(null)
   useEffect(() => {
     if (!isNew || !ref.current) return
@@ -266,6 +336,6 @@ function TypewriterText({ text, isNew }: { text: string; isNew: boolean }) {
     frame = requestAnimationFrame(tick)
     return () => cancelAnimationFrame(frame)
   }, [text, isNew])
-  if (!isNew) return <p className="gm-text">{text}</p>
+  if (!isNew) return <p className="gm-text">{highlightNames(text, characters, locations)}</p>
   return <p className="gm-text" ref={ref} />
 }

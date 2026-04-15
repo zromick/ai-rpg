@@ -118,7 +118,8 @@ export function CharacterPanel({ player, seed, service }: Props) {
               : player.side_characters.map((c, i) => (
                   <div key={i} className="world-item world-item--char">
                     <div className="world-item-header">
-                      <span className="world-item-name">{c.name}</span>
+                      <span className="world-item-name" data-status={c.relation} style={{ borderColor: c.outline_color }}>{c.name}</span>
+                      {c.outline_color && <span className="world-item-outline" style={{ backgroundColor: c.outline_color }} title="Character color" />}
                       <span className={`world-item-relation relation--${c.relation}`}>{c.relation}</span>
                     </div>
                     <span className="world-item-note">{c.description}</span>
@@ -135,7 +136,8 @@ export function CharacterPanel({ player, seed, service }: Props) {
               : player.locations.map((l, i) => (
                   <div key={i} className="world-item world-item--loc">
                     <div className="world-item-header">
-                      <span className="world-item-name">{l.name}</span>
+                      <span className="world-item-name" style={{ borderColor: l.outline_color }}>{l.name}</span>
+                      {l.outline_color && <span className="world-item-outline" style={{ backgroundColor: l.outline_color }} title="Location color" />}
                       <span className="world-item-turn">turn {l.last_visited}</span>
                     </div>
                     <span className="world-item-note">{l.description}</span>

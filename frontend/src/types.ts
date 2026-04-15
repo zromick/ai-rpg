@@ -10,8 +10,8 @@ export interface CharacterFeatures {
 
 export interface HistoryMessage { role: 'user' | 'assistant'; content: string }
 export interface InventoryItem  { name: string; quantity: string; note: string }
-export interface SideCharacter  { name: string; description: string; relation: string }
-export interface Location       { name: string; description: string; last_visited: number }
+export interface SideCharacter  { name: string; description: string; relation: string; outline_color?: string }
+export interface Location       { name: string; description: string; last_visited: number; outline_color?: string }
 
 export interface PlayerState {
   name: string; prompt_count: number; total_chars: number

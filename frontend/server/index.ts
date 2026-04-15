@@ -9,9 +9,9 @@ const __dirname  = path.dirname(__filename)
 const app        = express()
 const PORT       = 3001
 
-const STATE_PATH = path.resolve(__dirname, '../../game_state.json')
-const CMD_PATH   = path.resolve(__dirname, '../../command_queue.json')
-const SETUP_PATH = path.resolve(__dirname, '../../setup_state.json')
+const STATE_PATH = path.resolve(__dirname, '../game_state.json')
+const CMD_PATH   = path.resolve(__dirname, '../command_queue.json')
+const SETUP_PATH = path.resolve(__dirname, '../setup_state.json')
 
 app.use(cors())
 app.use(express.json())

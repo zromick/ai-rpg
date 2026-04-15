@@ -122,7 +122,7 @@ export default function App() {
 
       <main className="layout">
         <aside className="col-left">
-          <QuestPanel mainQuest={gameState.main_quest} mainQuestSteps={gameState.main_quest_steps} sideQuests={gameState.side_quests} scenario={gameState.scenario} />
+          <QuestPanel mainQuest={gameState.main_quest} mainQuestSteps={gameState.main_quest_steps} sideQuests={gameState.side_quests} scenario={gameState.scenario} history={player.history.map(h => h.content)} />
         </aside>
         <section className="col-center">
           <Terminal

@@ -620,7 +620,44 @@ html, body, #root {
 .world-item--char, .world-item--loc { flex-direction: column; gap: 3px; }
 
 .world-item-header { display: flex; align-items: center; justify-content: space-between; width: 100%; }
-.world-item-name { font-size: 12px; font-weight: 600; color: var(--text-bright); }
+.world-item-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-bright);
+  position: relative;
+  display: inline-block;
+}
+/* Status underline */
+.world-item-name[data-status="ally"]    { border-bottom: 2px solid var(--green-bright); }
+.world-item-name[data-status="enemy"]   { border-bottom: 2px solid var(--red-bright); }
+.world-item-name[data-status="neutral"] { border-bottom: 2px solid var(--text-dim); }
+.world-item-name[data-status="unknown"] { border-bottom: 2px solid var(--border-bright); }
+
+/* Character outline color pill */
+.world-item-outline {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  display: inline-block;
+  border: 1px solid rgba(255,255,255,0.3);
+  flex-shrink: 0;
+}
+
+/* In-game name highlighting */
+.highlighted-name {
+  padding: 1px 4px;
+  border-radius: 2px;
+  border: 1px solid;
+  display: inline;
+  white-space: nowrap;
+}
+
+/* Quest step completed - strikethrough */
+.quest-step--completed {
+  text-decoration: line-through;
+  opacity: 0.5;
+  color: var(--text-dim);
+}
 .world-item-qty  { font-family: var(--font-mono); font-size: 10px; color: var(--gold-dim); }
 .world-item-turn { font-family: var(--font-mono); font-size: 9px; color: var(--text-dim); }
 .world-item-note { font-size: 11px; color: var(--text-dim); line-height: 1.4; width: 100%; }

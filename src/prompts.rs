@@ -761,7 +761,7 @@ pub fn common_rule_definitions() -> Vec<CommonRuleDef> {
             label: "Response Length",
             description: "Controls GM narration length per turn. Level 1 = terse (~50 words); Level 15 = mythic (no limit).",
             kind: CommonRuleKind::Level {
-                default: 15,
+                default: 3,
                 levels: &[
                     LevelDef { level:  1, name: "Terse",         description: "~50 words. Just the facts.",                                   prompt_fragment: "Keep all responses to approximately 50 words. Be terse and direct." },
                     LevelDef { level:  2, name: "Clipped",        description: "~80 words. Brief but atmospheric.",                            prompt_fragment: "Keep responses to approximately 80 words. Brief but with atmosphere." },

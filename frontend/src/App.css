@@ -200,6 +200,22 @@ html, body, #root {
 .sq-title       { font-size: 12px; font-weight: 600; color: var(--text-bright); }
 .sq-desc        { font-size: 11px; color: var(--text-dim); line-height: 1.45; }
 
+.quest-steps {
+  margin: 6px 0 2px 0;
+  padding-left: 18px;
+  list-style: decimal;
+  font-size: 11px;
+  color: var(--text-dim);
+  line-height: 1.55;
+}
+.quest-steps--side {
+  font-size: 10px;
+  margin-top: 4px;
+}
+.quest-step {
+  padding: 1px 0;
+}
+
 /* ── Terminal ───────────────────────────────────────────────────────────────── */
 .terminal {
   flex: 1;

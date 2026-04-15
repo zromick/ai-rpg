@@ -21,6 +21,7 @@ pub struct LevelDef {
 pub struct SideQuest {
     pub title: &'static str,
     pub description: &'static str, // full challenge injected into system prompt
+    pub steps: &'static [&'static str],
 }
 
 /// The full pool of available side quests (scenario-agnostic, GM adapts them to context).
@@ -30,56 +31,110 @@ pub fn side_quest_pool() -> Vec<SideQuest> {
             title: "The Debt Collector",
             description: "You owe a dangerous moneylender 50 gold. Before you can win, \
 you must repay this debt in full — or eliminate the lender and erase all evidence of the loan.",
+            steps: &[
+                "Learn the moneylender's name and location",
+                "Gather 50 gold — or find leverage against the lender",
+                "Confront the lender: repay, negotiate, or eliminate them",
+            ],
         },
         SideQuest {
             title: "The Lost Heir",
             description: "A child of noble blood has gone missing in the slums. Find them, \
 confirm their identity, and return them to their family — or use the secret to your own advantage.",
+            steps: &[
+                "Hear the rumor of the missing heir",
+                "Search the slums and locate the child",
+                "Confirm their identity with proof",
+                "Return them to the family — or leverage the secret",
+            ],
         },
         SideQuest {
             title: "The Cursed Relic",
             description: "A powerful artifact is circulating in the black market. \
 Acquire it, determine its true nature, and either destroy it or deliver it to the Mage's Conclave.",
+            steps: &[
+                "Discover that a dangerous artifact is in circulation",
+                "Track it through the black market and acquire it",
+                "Determine the relic's true nature and its curse",
+                "Destroy the relic or deliver it to the Mage's Conclave",
+            ],
         },
         SideQuest {
             title: "The Assassin's Contract",
             description: "Someone has placed a contract on your life. You must identify \
 the client, neutralize the assassin, and confront the person who ordered your death.",
+            steps: &[
+                "Survive the first assassination attempt",
+                "Identify and neutralize the hired assassin",
+                "Trace the contract back to the client who ordered it",
+            ],
         },
         SideQuest {
             title: "The Grain Conspiracy",
             description: "A merchant cartel is hoarding grain to starve the poor quarter \
 and raise prices. Expose them publicly and break the cartel — without being killed for it.",
+            steps: &[
+                "Notice the grain shortage and rising prices",
+                "Investigate and identify the cartel members",
+                "Gather proof of the conspiracy",
+                "Expose them publicly and break the cartel",
+            ],
         },
         SideQuest {
             title: "The Forgotten Temple",
             description: "An ancient temple beneath the city holds a secret that could \
 destabilize the throne. Reach its inner sanctum, read the inscription, and decide what \
 to do with the knowledge.",
+            steps: &[
+                "Learn of the temple's existence beneath the city",
+                "Find the entrance and navigate its dangers",
+                "Reach the inner sanctum and read the inscription",
+            ],
         },
         SideQuest {
             title: "The Veteran's Honor",
             description: "A celebrated war hero has been falsely imprisoned. \
 Prove their innocence, secure their release, and earn their sworn loyalty — \
 or their enmity if you fail.",
+            steps: &[
+                "Learn of the veteran's imprisonment",
+                "Investigate the charges and gather evidence of innocence",
+                "Present proof and secure their release",
+            ],
         },
         SideQuest {
             title: "The Poisoned Well",
             description: "Disease is spreading through the poor quarter. \
 Identify the source — natural or deliberate — stop it, and publicly attribute blame \
 to the responsible party.",
+            steps: &[
+                "Witness the spreading sickness in the poor quarter",
+                "Investigate the water supply and identify the source",
+                "Stop the contamination and publicly blame the responsible party",
+            ],
         },
         SideQuest {
             title: "The Double Agent",
             description: "One of your allies is secretly feeding information to a rival faction. \
 Identify the traitor through observation and deduction, then decide whether to expose, \
 turn, or eliminate them.",
+            steps: &[
+                "Notice that your plans keep reaching your enemies",
+                "Narrow down the suspects through observation",
+                "Confirm the traitor's identity with proof",
+                "Decide their fate: expose, turn, or eliminate",
+            ],
         },
         SideQuest {
             title: "The King's Fool",
             description: "The court jester knows a secret about the king that no one else does. \
 Win their trust, extract the secret, and leverage it — carefully. \
 The jester is shrewder than they appear.",
+            steps: &[
+                "Learn that the court jester holds a royal secret",
+                "Win the jester's trust through favors or wit",
+                "Extract the secret and decide how to leverage it",
+            ],
         },
     ]
 }
@@ -109,6 +164,7 @@ pub fn pick_side_quests(count: usize) -> Vec<SideQuest> {
         .map(|&i| SideQuest {
             title: pool[i].title,
             description: pool[i].description,
+            steps: pool[i].steps,
         })
         .collect()
 }
@@ -141,6 +197,7 @@ pub struct StoryPrompt {
     pub user_inventory: &'static str,
     pub scenario_rules: &'static [ScenarioRule],
     pub win_conditions: &'static str,
+    pub main_quest_steps: &'static [&'static str],
 }
 
 // ─── Common rule definitions ──────────────────────────────────────────────────
@@ -388,6 +445,18 @@ steep, and only exceptional wealth or political leverage opens the path to kings
             ],
             win_conditions: "You are publicly acknowledged as King of Aethelgard, crowned \
 before the nobility and clergy in the Grand Cathedral.",
+            main_quest_steps: &[
+                "Survive your first day — find food and shelter",
+                "Earn your first real coin through work or cunning",
+                "Gain a foothold in the Mud District — ally or reputation",
+                "Rise to Merchant tier — acquire property or a trade license",
+                "Build wealth and influence among the guilds",
+                "Earn knighthood through service, valor, or political favor",
+                "Enter noble society — secure a title or powerful patron",
+                "Eliminate or neutralize your rivals for the throne",
+                "Win the backing of the clergy and the military",
+                "Be crowned King in the Grand Cathedral",
+            ],
         },
 
         // ── 2. Shipwrecked on the Obsidian Shore ────────────────────────────
@@ -446,6 +515,18 @@ player. Actions that help one tribe may antagonize another.",
             ],
             win_conditions: "You escape the island aboard a seaworthy vessel, OR you are \
 accepted as chief by all three tribes and rule the island.",
+            main_quest_steps: &[
+                "Survive the wreck — secure immediate shelter and fresh water",
+                "Salvage useful materials from the shipwreck",
+                "Scout the coastline and discover the island's geography",
+                "Make first contact with one of the three tribes",
+                "Establish a reliable food and water supply",
+                "Learn the island's history from ruins or tribal lore",
+                "Earn standing with at least one tribe through trade or deeds",
+                "Navigate the volcanic interior and its dangers",
+                "Build or acquire a seaworthy vessel — or unite the tribes",
+                "Escape the island or be accepted as chief of all three tribes",
+            ],
         },
 
         // ── 3. The Haunted Precinct ──────────────────────────────────────────
@@ -506,6 +587,18 @@ key truth. Surface information is rarely the full picture.",
             ],
             win_conditions: "The Velmoor Curse is publicly exposed and its source destroyed \
 or contained. You survive with your sanity intact.",
+            main_quest_steps: &[
+                "Examine the photograph and visit the woman at the address",
+                "Investigate the crime scenes and identify the pattern",
+                "Gather witnesses — bribe, charm, or threaten for testimony",
+                "Discover the supernatural connection between the murders",
+                "Research the Velmoor Curse in forbidden texts or archives",
+                "Survive your first direct encounter with the supernatural",
+                "Identify the entity or person behind the curse",
+                "Assemble proof that would convince the public",
+                "Confront the source of the curse and contain or destroy it",
+                "Expose the truth publicly — and survive with sanity intact",
+            ],
         },
 
         // ── 4. Void Merchant ─────────────────────────────────────────────────
@@ -566,6 +659,18 @@ slow work, insubordination, or desertion at port.",
             ],
             win_conditions: "The debt is paid in full and you have established at least two \
 independent trade contracts not controlled by any faction.",
+            main_quest_steps: &[
+                "Take command of the Rusted Meridian and assess the crew",
+                "Make your first successful cargo run for profit",
+                "Repair the malfunctioning navigation array",
+                "Establish a relationship with one of the three factions",
+                "Find a lucrative trade route or salvage opportunity",
+                "Make your first debt payment to stall the creditors",
+                "Navigate a crew crisis — mutiny, desertion, or betrayal",
+                "Secure your first independent trade contract",
+                "Secure a second independent contract outside faction control",
+                "Pay off the 40,000 credit debt in full",
+            ],
         },
     ]
 }

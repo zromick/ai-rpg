@@ -5,7 +5,6 @@ import { QuestPanel } from './components/QuestPanel'
 import { PlayerTabs } from './components/PlayerTabs'
 import { getService, DEFAULT_SERVICE_ID } from './imageServices'
 import type { ImageService } from './types'
-import { ServicePicker } from './components/ServicePicker'
 import { SettingsPanel } from './components/SettingsPanel'
 import { useGameState } from './hooks/UseGameState'
 import { SetupPayload, SetupWizard } from './components/SetupWizard'
@@ -45,7 +44,7 @@ export default function App() {
     await sendCommand(FAKE_SETUP_PLAYER, `__setup_complete__ ${JSON.stringify(payload)}`)
   }, [sendCommand])
 
-  const handleSettingsApply = useCallback(async (update: { model?: string; common_rules?: Array<{ active: boolean; current_level: number }> }) => {
+  const handleSettingsApply = useCallback(async (update: { model?: string; common_rules?: Array<{ active: boolean; current_level: number }>; scenario_rules?: boolean[] }) => {
     await sendCommand(FAKE_SETUP_PLAYER, `__settings_update__ ${JSON.stringify(update)}`)
   }, [sendCommand])
 
@@ -65,7 +64,7 @@ export default function App() {
       <div className="splash">
         <div className="splash-inner">
           <div className="crown-glyph">♛</div>
-          <h1 className="splash-title">Beggars to Crowns</h1>
+          <h1 className="splash-title">AI RPG</h1>
           <p className="splash-sub">Waiting for game server…</p>
           <p className="splash-hint">Run <code>cargo run --release</code> in the project root.</p>
           {error && <p className="splash-error">{error}</p>}
@@ -100,16 +99,18 @@ export default function App() {
   const player = gameState.players.find(p => p.name === selectedPlayer) ?? gameState.players[0]
   if (!player) return null
 
+  const currentTheme = gameState.settings.common_rules.find(r => r.label === 'Theme')?.current_level ?? 1
+  const themeClass = ['theme-classic', 'theme-forest', 'theme-ocean', 'theme-crimson'][currentTheme - 1] ?? 'theme-classic'
+
   return (
-    <div className="app">
+    <div className={`app ${themeClass}`}>
       <header className="topbar">
         <div className="topbar-left">
           <span className="topbar-crown">♛</span>
-          <span className="topbar-title">Beggars to Crowns</span>
+          <span className="topbar-title">AI RPG</span>
           <span className="topbar-scenario">{gameState.scenario}</span>
         </div>
         <div className="topbar-right">
-          <ServicePicker selected={imageService} onSelect={setImageService} />
           <span className="topbar-model">{gameState.model}</span>
           <button className="settings-btn" onClick={() => setShowSettings(true)} title="Settings">⚙</button>
           <span className="topbar-pulse" title="Live" />
@@ -122,7 +123,7 @@ export default function App() {
 
       <main className="layout">
         <aside className="col-left">
-          <QuestPanel mainQuest={gameState.main_quest} mainQuestSteps={gameState.main_quest_steps} sideQuests={gameState.side_quests} scenario={gameState.scenario} history={player.history.map(h => h.content)} />
+          <QuestPanel mainQuest={gameState.main_quest} mainQuestSteps={gameState.main_quest_steps} sideQuests={gameState.side_quests} history={player.history.map(h => h.content)} />
         </aside>
         <section className="col-center">
           <Terminal
@@ -155,6 +156,8 @@ export default function App() {
         <SettingsPanel
           settings={gameState.settings}
           models={models}
+          imageService={imageService}
+          onImageServiceChange={setImageService}
           onClose={() => setShowSettings(false)}
           onApply={handleSettingsApply}
         />

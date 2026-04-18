@@ -11,9 +11,9 @@ const LOCAL_CMDS = new Set([
   'locations','locs','map',
   'settings','se',
   'help','?',
+  'title','t',
+  'restart','r',
 ])
-
-const CONFIRM_CMDS = new Set(['restart','r','title','t'])
 
 interface Props {
   history: HistoryMessage[]
@@ -89,9 +89,13 @@ export function Terminal({ history, playerName, isActive, mainQuest, sideQuests,
 
   function resolveLocal(cmd: string): boolean {
     const c = cmd.trim().toLowerCase()
-    if (CONFIRM_CMDS.has(c)) {
-      if (c === 'restart' || c === 'r') setConfirmAction('restart')
-      else setConfirmAction('title')
+    if (c === 'title' || c === 't') {
+      pushLocal('Returning to title screen...')
+      onTitle()
+      return true
+    }
+    if (c === 'restart' || c === 'r') {
+      setConfirmAction('restart')
       return true
     }
     if (!LOCAL_CMDS.has(c)) return false

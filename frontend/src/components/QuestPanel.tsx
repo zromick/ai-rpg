@@ -1,12 +1,11 @@
 // src/components/QuestPanel.tsx
-import { useMemo, ReactNode } from 'react'
+import { useState, useMemo } from 'react'
 import type { SideQuest } from '../types'
 
 interface Props {
   mainQuest: string
   mainQuestSteps?: string[]
   sideQuests: SideQuest[]
-  scenario: string
   history?: string[]
 }
 
@@ -32,8 +31,9 @@ function isStepCompleted(step: string, history: string[]): boolean {
   return false
 }
 
-export function QuestPanel({ mainQuest, mainQuestSteps, sideQuests, scenario, history = [] }: Props) {
-  // Compute completed steps for main quest
+export function QuestPanel({ mainQuest, mainQuestSteps, sideQuests, history = [] }: Props) {
+  const [showSteps, setShowSteps] = useState(true)
+
   const mainQuestStepsWithCompletion = useMemo(() => {
     if (!mainQuestSteps) return []
     return mainQuestSteps.map(step => ({
@@ -42,14 +42,29 @@ export function QuestPanel({ mainQuest, mainQuestSteps, sideQuests, scenario, hi
     }))
   }, [mainQuestSteps, history])
 
+  const sideQuestsWithCompletion = useMemo(() => {
+    return sideQuests.map(q => ({
+      ...q,
+      steps: (q.steps || []).map(step => ({
+        step,
+        completed: isStepCompleted(step, history)
+      }))
+    }))
+  }, [sideQuests, history])
+
   return (
     <div className="quest-panel">
-      <div className="quest-scenario">{scenario}</div>
-
       <div className="quest-section">
-        <h4 className="quest-label">♛ Main Quest</h4>
+        <div className="quest-header">
+          <h4 className="quest-label">♛ Main Quest</h4>
+          {mainQuestStepsWithCompletion.length > 0 && (
+            <button className="quest-toggle" onClick={() => setShowSteps(s => !s)} title={showSteps ? 'Hide steps' : 'Show steps'}>
+              [{showSteps ? '−' : '+'}]
+            </button>
+          )}
+        </div>
         <p className="quest-text">{mainQuest}</p>
-        {mainQuestStepsWithCompletion.length > 0 && (
+        {showSteps && mainQuestStepsWithCompletion.length > 0 && (
           <ol className="quest-steps">
             {mainQuestStepsWithCompletion.map((item, i) => (
               <li key={i} className={`quest-step ${item.completed ? 'quest-step--completed' : ''}`}>{item.step}</li>
@@ -60,26 +75,27 @@ export function QuestPanel({ mainQuest, mainQuestSteps, sideQuests, scenario, hi
 
       {sideQuests.length > 0 && (
         <div className="quest-section">
-          <h4 className="quest-label">⚔ Side Quests</h4>
-          {sideQuests.map((q, i) => {
-            const stepsWithCompletion = (q.steps || []).map(step => ({
-              step,
-              completed: isStepCompleted(step, history)
-            }))
-            return (
-              <div key={i} className="side-quest">
-                <span className="sq-title">{q.title}</span>
-                <span className="sq-desc">{q.description}</span>
-                {stepsWithCompletion.length > 0 && (
-                  <ol className="quest-steps quest-steps--side">
-                    {stepsWithCompletion.map((item, j) => (
-                      <li key={j} className={`quest-step ${item.completed ? 'quest-step--completed' : ''}`}>{item.step}</li>
-                    ))}
-                  </ol>
-                )}
-              </div>
-            )
-          })}
+          <div className="quest-header">
+            <h4 className="quest-label">⚔ Side Quests</h4>
+            {sideQuests.some(q => q.steps && q.steps.length > 0) && (
+              <button className="quest-toggle" onClick={() => setShowSteps(s => !s)} title={showSteps ? 'Hide steps' : 'Show steps'}>
+                [{showSteps ? '−' : '+'}]
+              </button>
+            )}
+          </div>
+          {sideQuestsWithCompletion.map((q, i) => (
+            <div key={i} className="side-quest">
+              <span className="sq-title">{q.title}</span>
+              <span className="sq-desc">{q.description}</span>
+              {showSteps && q.steps.length > 0 && (
+                <ol className="quest-steps quest-steps--side">
+                  {q.steps.map((item, j) => (
+                    <li key={j} className={`quest-step ${item.completed ? 'quest-step--completed' : ''}`}>{item.step}</li>
+                  ))}
+                </ol>
+              )}
+            </div>
+          ))}
         </div>
       )}
     </div>

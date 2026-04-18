@@ -2,8 +2,19 @@
 // Full game setup flow rendered as a terminal-style UI.
 // Steps: model → scenario → scenario rules → universal rules → players → confirm
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import type { SetupData, ModelOption, ScenarioOption, CommonRuleOption } from '../types'
+
+const RANDOM_NAMES = [
+  'Aldric Shadowmere', 'Seraphina Blackwood', 'Kael Ironforge', 'Morgana Nightwind', 'Theron Silverbrook',
+  'Elowen Stormcaller', 'Dorian Grayhaven', 'Isolde Fairweather', 'Ragnar Bloodaxe', 'Lyria Moonshadow',
+  'Cedric Wildwood', 'Astrid Frostborn', 'Gareth Stonewall', 'Rowena Goldheart', 'Finn Blackthorn',
+  'Cora Brightblade', 'Borian Stormwarden', 'Mirabel Windrider', 'Axel Darkwater', 'Sylas Redmantle'
+]
+
+function getRandomName(): string {
+  return RANDOM_NAMES[Math.floor(Math.random() * RANDOM_NAMES.length)]
+}
 
 interface Props {
   data: SetupData
@@ -18,10 +29,10 @@ export interface SetupPayload {
   players: Array<{ name: string }>
 }
 
-type Step = 'model' | 'scenario' | 'scenario_rules' | 'common_rules' | 'players' | 'confirm'
+type Step = 'home' | 'model' | 'scenario' | 'scenario_rules' | 'common_rules' | 'players' | 'confirm'
 
 export function SetupWizard({ data, onSubmit }: Props) {
-  const [step, setStep]                 = useState<Step>('model')
+  const [step, setStep]                 = useState<Step>('home')
   const [model, setModel]               = useState(data.models[0]?.id ?? '')
   const [scenarioIdx, setScenarioIdx]   = useState(0)
   const [scenarioRules, setScenarioRules] = useState<boolean[]>([])
@@ -32,7 +43,8 @@ export function SetupWizard({ data, onSubmit }: Props) {
   const [playerCount, setPlayerCount]   = useState(1)
 
   function goNext() {
-    if (step === 'model')          setStep('scenario')
+    if (step === 'home')            setStep('model')
+    else if (step === 'model')          setStep('scenario')
     else if (step === 'scenario') {
       const sc = data.scenarios[scenarioIdx]
       setScenarioRules(sc.scenario_rules.map(r => r.default))
@@ -44,27 +56,43 @@ export function SetupWizard({ data, onSubmit }: Props) {
   }
 
   function goBack() {
-    if (step === 'scenario')       setStep('model')
+    if (step === 'model')         setStep('home')
+    else if (step === 'scenario') setStep('model')
     else if (step === 'scenario_rules') setStep('scenario')
     else if (step === 'common_rules')   setStep('scenario_rules')
     else if (step === 'players')        setStep('common_rules')
     else if (step === 'confirm')        setStep('players')
   }
 
-  function handleSubmit() {
-    const validPlayers = players.slice(0, playerCount).filter(n => n.trim())
-    onSubmit({ model, scenario_idx: scenarioIdx, scenario_rules: scenarioRules, common_rules: commonRules, players: validPlayers.map(name => ({ name: name.trim() })) })
+  useEffect(() => {
+    function handleKeyDown(e: Event) {
+      const t = e.target as HTMLElement
+      if (e instanceof KeyboardEvent && e.key === 'Enter' && t.tagName !== 'INPUT' && t.tagName !== 'TEXTAREA' && t.tagName !== 'SELECT') {
+        if (step === 'confirm') handleSubmit()
+        else if (step !== 'home') goNext()
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [step])
+
+function handleSubmit() {
+    const validPlayers = players.slice(0, playerCount).map(n => {
+      const name = n.trim()
+      return name ? { name } : { name: getRandomName() }
+    })
+    onSubmit({ model, scenario_idx: scenarioIdx, scenario_rules: scenarioRules, common_rules: commonRules, players: validPlayers })
   }
 
   const scenario = data.scenarios[scenarioIdx]
-  const steps: Step[] = ['model','scenario','scenario_rules','common_rules','players','confirm']
+  const steps: Step[] = ['home','model','scenario','scenario_rules','common_rules','players','confirm']
   const stepNum = steps.indexOf(step) + 1
 
   return (
     <div className="setup-wizard">
       <div className="setup-header">
         <span className="setup-crown">♛</span>
-        <span className="setup-title">BEGGARS TO CROWNS</span>
+        <span className="setup-title">AI RPG</span>
         <span className="setup-step">Setup {stepNum} / {steps.length}</span>
       </div>
 
@@ -75,6 +103,20 @@ export function SetupWizard({ data, onSubmit }: Props) {
       </div>
 
       <div className="setup-body">
+
+        {/* ── Home / New or Continue ── */}
+        {step === 'home' && (
+          <div className="setup-section">
+            <h2 className="setup-section-title">Welcome to AI RPG</h2>
+            <p className="setup-section-hint">Choose how to begin your adventure.</p>
+            <div className="setup-list">
+              <button className="setup-item setup-item--selected" onClick={goNext}>
+                <span className="setup-item-label">Start New Game</span>
+                <span className="setup-item-sub">Begin a fresh adventure</span>
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* ── Model ── */}
         {step === 'model' && (
@@ -159,9 +201,9 @@ export function SetupWizard({ data, onSubmit }: Props) {
                     <div className="setup-rule-level">
                       <span className="setup-rule-name">{r.label}</span>
                       <div className="setup-level-row">
-                        <input type="range" min={0} max={r.max_level} value={cr.current_level}
+                        <input type="range" min={r.label.includes('Difficulty') ? 1 : 0} max={r.max_level} value={cr.current_level}
                           className="setup-slider"
-                          onChange={e => { const lv = Number(e.target.value); const n = [...commonRules]; n[i] = { active: lv > 0, current_level: lv }; setCommonRules(n); }}
+                          onChange={e => { const lv = Number(e.target.value); const minLv = r.label.includes('Difficulty') ? 1 : 0; const n = [...commonRules]; n[i] = { active: lv > 0, current_level: Math.max(minLv, lv) }; setCommonRules(n); }}
                         />
                         <span className="setup-level-val">
                           {cr.current_level === 0 ? 'OFF' : `${cr.current_level} — ${r.level_names[cr.current_level - 1] ?? '?'}`}
@@ -196,7 +238,7 @@ export function SetupWizard({ data, onSubmit }: Props) {
                 <span className="setup-player-num">Player {i+1}</span>
                 <input className="setup-player-input" type="text"
                   value={players[i] ?? ''}
-                  placeholder={`Enter name…`}
+                  placeholder={i === 0 && !players[i] ? getRandomName() : `Enter name…`}
                   onChange={e => { const n = [...players]; n[i] = e.target.value; setPlayers(n); }}
                 />
               </div>
@@ -226,15 +268,10 @@ export function SetupWizard({ data, onSubmit }: Props) {
 
       {/* ── Nav ── */}
       <div className="setup-nav">
-        {step !== 'model' && <button className="setup-btn setup-btn--back" onClick={goBack}>← Back</button>}
+        {step !== 'home' && <button className="setup-btn setup-btn--back" onClick={goBack}>← Back</button>}
         {step !== 'confirm'
-          ? <button className="setup-btn setup-btn--next" onClick={goNext}
-              disabled={step === 'players' && players.slice(0, playerCount).every(n => !n.trim())}>
-              Next →
-            </button>
-          : <button className="setup-btn setup-btn--start" onClick={handleSubmit}>
-              ♛ Begin Adventure
-            </button>
+          ? <button className="setup-btn setup-btn--next" onClick={goNext}>Next →</button>
+          : <button className="setup-btn setup-btn--start" onClick={handleSubmit}>♛ Begin Adventure</button>
         }
       </div>
     </div>

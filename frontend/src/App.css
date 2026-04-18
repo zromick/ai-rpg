@@ -818,3 +818,20 @@ html, body, #root {
   color: var(--text-dim); font-size: 13px; padding: 2px 8px; cursor: pointer; transition: all 0.15s;
 }
 .settings-btn:hover { border-color: var(--gold-dim); color: var(--gold); }
+
+/* ── Theme: Forest ───────────────────────────────────────────────────── */
+.theme-forest { --bg: #0f120d; --bg-panel: #131714; --bg-raised: #1a2019; --bg-hover: #212b23; --border: #2a382c; --border-bright:#3d4d3e; --gold: #5a8f4d; --gold-dim: #3a5f2e; --gold-glow: rgba(90,143,77,0.18); --text: #c5d1bb; --text-dim: #5a6b52; --text-bright:#e1e9d2; --text-gm: #9ab88a; --red: #6b2a1a; --red-bright: #9a452a; --green: #3a6b3a; --green-bright:#5a9e5a; --terminal-bg: #0b0e0a; --terminal-glow:rgba(90,143,77,0.06); }
+
+/* ── Theme: Ocean ──────────────────────────────────────────────────────── */
+.theme-ocean { --bg: #080d12; --bg-panel: #0b1218; --bg-raised: #101c24; --bg-hover: #162630; --border: #1e323e; --border-bright:#2a4656; --gold: #4a8faa; --gold-dim: #2e5a6a; --gold-glow: rgba(74,143,170,0.18); --text: #b5c5d1; --text-dim: #526a7a; --text-bright:#d2e1e9; --text-gm: #8aaab8; --red: #2a4a6b; --red-bright: #4a6a8a; --green: #2a5a6b; --green-bright:#4a7a8a; --terminal-bg: #060a0e; --terminal-glow:rgba(74,143,170,0.06); }
+
+/* ── Theme: Crimson ───────────────────────────────────────────────── */
+.theme-crimson { --bg: #120808; --bg-panel: #181010; --bg-raised: #201817; --bg-hover: #2a2020; --border: #3a2a2a; --border-bright:#5a3a3a; --gold: #aa4a4a; --gold-dim: #6a2a2a; --gold-glow: rgba(170,74,74,0.18); --text: #d1b5b5; --text-dim: #6a5252; --text-bright:#e9d2d2; --text-gm: #b88a8a; --red: #6b1a1a; --red-bright: #9a2a2a; --green: #3a4a3a; --green-bright:#5a6a5a; --terminal-bg: #0e0a0a; --terminal-glow:rgba(170,74,74,0.06); }
+
+/* Quest toggle button */
+.quest-header { display: flex; align-items: center; justify-content: space-between; }
+.quest-toggle {
+  background: transparent; border: none; color: var(--text-dim); font-family: var(--font-mono); font-size: 11px;
+  cursor: pointer; padding: 0 4px;
+}
+.quest-toggle:hover { color: var(--gold); }

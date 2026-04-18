@@ -14,6 +14,7 @@ pub struct SettingDetail {
 pub struct LevelDef {
     pub level: u8,
     pub name: &'static str,
+    #[allow(dead_code)]
     pub description: &'static str,
     pub prompt_fragment: &'static str,
 }
@@ -265,6 +266,7 @@ pub fn build_system_prompt(
     story: &StoryPrompt,
     common: &RuleSet,
     side_quests: &[SideQuest],
+    scenario_rule_enabled: Option<&[bool]>,
 ) -> String {
     let mut out = String::new();
 
@@ -294,14 +296,25 @@ pub fn build_system_prompt(
     out.push_str("\n\n");
 
     // Scenario-specific rules that are ON
-    let active_scenario: Vec<&ScenarioRule> = story
-        .scenario_rules
-        .iter()
-        .filter(|r| match &r.kind {
-            RuleKind::Boolean { default } => *default,
-            RuleKind::Level { .. } => true,
-        })
-        .collect();
+    let active_scenario: Vec<&ScenarioRule> = if let Some(enabled) = scenario_rule_enabled {
+        // Use explicit enabled flags
+        story
+            .scenario_rules
+            .iter()
+            .zip(enabled.iter())
+            .filter_map(|(r, &on)| if on { Some(r) } else { None })
+            .collect()
+    } else {
+        // Fall back to defaults from RuleKind
+        story
+            .scenario_rules
+            .iter()
+            .filter(|r| match &r.kind {
+                RuleKind::Boolean { default } => *default,
+                RuleKind::Level { .. } => true,
+            })
+            .collect()
+    };
     if !active_scenario.is_empty() {
         out.push_str("SCENARIO RULES:\n");
         for r in &active_scenario {
@@ -728,6 +741,24 @@ pub fn common_rule_definitions() -> Vec<CommonRuleDef> {
             kind: CommonRuleKind::Boolean { default: true },
             active_fragment: "Do not tell the user what they can do after the description. They will figure it out themselves.",
         },
+        CommonRuleDef {
+            label: "Explicit Content (18+)",
+            description: "Allow mature themes, relationships, and graphic violence. Player must be 18+ to enable.",
+            kind: CommonRuleKind::Boolean { default: true },
+            active_fragment: "You may include mature themes, romantic relationships, and graphic content appropriate for adult players. Ensure all participants in the narrative are adults.",
+        },
+        CommonRuleDef {
+            label: "Character Coloring",
+            description: "Generate a colored portrait for the player character using the selected image engine.",
+            kind: CommonRuleKind::Boolean { default: true },
+            active_fragment: "Generate a colored portrait for the player character using the image engine. Include color, lighting, and atmosphere appropriate to the scene.",
+        },
+        CommonRuleDef {
+            label: "Location Coloring",
+            description: "Generate a colored image for locations and key scenes using the selected image engine.",
+            kind: CommonRuleKind::Boolean { default: true },
+            active_fragment: "Generate atmospheric images for locations, key scenes, and important moments using the image engine. Capture mood, lighting, and scale appropriately.",
+        },
 
         // ── Level: Difficulty ─────────────────────────────────────────────────
         CommonRuleDef {
@@ -802,6 +833,22 @@ Level 0 = disabled; Level 1–10 = number of side quests added to win conditions
                     LevelDef { level:  8, name: "8 Quests",  description: "8 side quests randomly selected.",                           prompt_fragment: "" },
                     LevelDef { level:  9, name: "9 Quests",  description: "9 side quests randomly selected.",                           prompt_fragment: "" },
                     LevelDef { level: 10, name: "All 10",    description: "All 10 side quests — a true completionist run.",             prompt_fragment: "" },
+                ],
+            },
+            active_fragment: "",
+        },
+
+        // ── Level: Theme ────────────────────────────────────────────────────────
+        CommonRuleDef {
+            label: "Theme",
+            description: "Visual theme for the interface. Changes colors and atmosphere.",
+            kind: CommonRuleKind::Level {
+                default: 1,
+                levels: &[
+                    LevelDef { level: 1, name: "Classic",      description: "Default dark theme with gold accents.",                      prompt_fragment: "" },
+                    LevelDef { level: 2, name: "Forest",       description: "Earth tones, greens, and natural colors.",                 prompt_fragment: "" },
+                    LevelDef { level: 3, name: "Ocean",       description: "Deep blues and aquas, maritime feel.",                     prompt_fragment: "" },
+                    LevelDef { level: 4, name: "Crimson",     description: "Bold reds and dark theme for dramatic flair.",               prompt_fragment: "" },
                 ],
             },
             active_fragment: "",

@@ -12,7 +12,7 @@ use dotenvy::dotenv;
 
 use prompts::{
     build_system_prompt, common_rule_definitions, pick_side_quests, story_prompts,
-    CommonRuleKind, RuleSet, SideQuest, StoryPrompt,
+    CommonRuleKind, RuleSet, SideQuest,
 };
 
 // ─── File paths ───────────────────────────────────────────────────────────────
@@ -252,11 +252,6 @@ fn drain_queue() -> Vec<QueuedCommand> {
     cmds
 }
 
-fn queue_is_empty() -> bool {
-    let raw = std::fs::read_to_string(CMD_FILE).unwrap_or_default();
-    let cmds: Vec<Value> = serde_json::from_str(&raw).unwrap_or_default();
-    cmds.is_empty()
-}
 
 // ─── HuggingFace API ──────────────────────────────────────────────────────────
 
@@ -350,7 +345,6 @@ Critical rules:
 
 // ─── UI helpers ───────────────────────────────────────────────────────────────
 
-fn sep(ch: char, n: usize) { println!("{}", ch.to_string().repeat(n)); }
 
 fn read_line(prompt: &str) -> String {
     print!("{}", prompt); io::stdout().flush().unwrap();
@@ -377,7 +371,7 @@ struct PlayerInput { name: String }
 
 /// Write setup_state.json so the UI knows what options to show, then block
 /// until the UI posts a __setup_complete__ command with choices.
-fn wait_for_ui_setup(client: &Client, key: &str) -> SetupPayload {
+fn wait_for_ui_setup(_client: &Client, _key: &str) -> SetupPayload {
     // Build the options payload for the UI
     let scenarios: Vec<Value> = story_prompts().iter().map(|s| json!({
         "title": s.title,
@@ -442,7 +436,7 @@ fn build_game_from_setup(payload: &SetupPayload, key: &str, client: &Client) -> 
     let sq_count = rule_set.entries.iter().find(|e| e.label == "Side Quests")
         .map(|e| if e.active { e.current_level as usize } else { 0 }).unwrap_or(0);
     let side_quests = pick_side_quests(sq_count);
-    let system_prompt = build_system_prompt(story, &rule_set, &side_quests);
+    let system_prompt = build_system_prompt(story, &rule_set, &side_quests, Some(&payload.scenario_rules));
 
     // Build settings snapshot for UI display
     let scenario_rule_settings: Vec<ScenarioRuleSetting> = story.scenario_rules.iter().enumerate().map(|(i, r)| ScenarioRuleSetting {
@@ -492,7 +486,7 @@ fn build_game_from_setup(payload: &SetupPayload, key: &str, client: &Client) -> 
 /// Handle __settings_update__ command: rebuild system prompt and push to all sessions.
 fn apply_settings_update(gs: &mut GameState, sessions: &mut HashMap<String, PlayerSession>, json_str: &str) {
     #[derive(Deserialize)]
-    struct SettingsUpdate { model: Option<String>, common_rules: Option<Vec<CommonRuleInput>> }
+    struct SettingsUpdate { model: Option<String>, common_rules: Option<Vec<CommonRuleInput>>, scenario_rules: Option<Vec<bool>> }
 
     let update: SettingsUpdate = match serde_json::from_str(json_str) {
         Ok(u) => u, Err(e) => { eprintln!("[settings] parse error: {}", e); return; }
@@ -500,46 +494,67 @@ fn apply_settings_update(gs: &mut GameState, sessions: &mut HashMap<String, Play
 
     if let Some(m) = update.model { gs.model = m.clone(); gs.settings.model = m; }
 
-    if let Some(rule_inputs) = update.common_rules {
-        let mut rule_set = RuleSet::from_defaults();
+    // Update scenario rules if provided
+    if let Some(ref sr) = update.scenario_rules {
+        for (i, &enabled) in sr.iter().enumerate() {
+            if let Some(rule) = gs.settings.scenario_rules.get_mut(i) {
+                rule.enabled = enabled;
+            }
+        }
+    }
+
+    // Always rebuild common rules and system prompt (either common_rules or scenario_rules changed)
+    let mut rule_set = RuleSet::from_defaults();
+    if let Some(rule_inputs) = &update.common_rules {
         for (i, input) in rule_inputs.iter().enumerate() {
             if let Some(entry) = rule_set.entries.get_mut(i) {
                 entry.active        = input.active;
                 entry.current_level = input.current_level;
             }
         }
-
-        // Check if side quest count changed and re-pick if needed
-        let new_sq_count = rule_set.entries.iter().find(|e| e.label == "Side Quests")
-            .map(|e| if e.active { e.current_level as usize } else { 0 }).unwrap_or(0);
-        let old_sq_count = gs.side_quests.len();
-        if new_sq_count != old_sq_count {
-            gs.side_quests = pick_side_quests(new_sq_count);
-            eprintln!("[settings] Side quests changed: {} → {}", old_sq_count, new_sq_count);
-        }
-
-        // Rebuild system prompt
-        let scenarios = story_prompts();
-        if let Some(story) = scenarios.iter().find(|s| s.title == gs.scenario_title) {
-            let new_prompt = build_system_prompt(story, &rule_set, &gs.side_quests);
-            gs.system_prompt = new_prompt.clone();
-            for session in sessions.values_mut() {
-                session.system_prompt = new_prompt.clone();
-                // Replace system message in history
-                if let Some(m) = session.history.iter_mut().find(|m| m.role == "system") {
-                    m.content = new_prompt.clone();
-                }
+    } else {
+        // Use existing common rules from settings
+        for (i, s) in gs.settings.common_rules.iter().enumerate() {
+            if let Some(entry) = rule_set.entries.get_mut(i) {
+                entry.active = s.active;
+                entry.current_level = s.current_level;
             }
-            // Update settings snapshot
-            gs.settings.common_rules = rule_set.entries.iter().map(|e| {
-                let (kind, max_lv, names) = match &e.kind {
-                    CommonRuleKind::Boolean { .. } => ("boolean".to_string(), 1u8, vec!["ON".to_string(),"OFF".to_string()]),
-                    CommonRuleKind::Level { levels, .. } => ("level".to_string(), levels.iter().map(|l| l.level).max().unwrap_or(1), levels.iter().map(|l| l.name.to_string()).collect()),
-                };
-                CommonRuleSetting { label: e.label.to_string(), description: e.description.to_string(), kind, active: e.active, current_level: e.current_level, max_level: max_lv, level_names: names }
-            }).collect();
-            eprintln!("[settings] Updated and applied to all sessions.");
         }
+    }
+
+    // Check if side quest count changed and re-pick if needed
+    let new_sq_count = rule_set.entries.iter().find(|e| e.label == "Side Quests")
+        .map(|e| if e.active { e.current_level as usize } else { 0 }).unwrap_or(0);
+    let old_sq_count = gs.side_quests.len();
+    if new_sq_count != old_sq_count {
+        gs.side_quests = pick_side_quests(new_sq_count);
+        eprintln!("[settings] Side quests changed: {} → {}", old_sq_count, new_sq_count);
+    }
+
+    // Get scenario rule enabled flags for prompt rebuild
+    let scenario_enabled: Vec<bool> = gs.settings.scenario_rules.iter().map(|r| r.enabled).collect();
+
+    // Rebuild system prompt
+    let scenarios = story_prompts();
+    if let Some(story) = scenarios.iter().find(|s| s.title == gs.scenario_title) {
+        let new_prompt = build_system_prompt(story, &rule_set, &gs.side_quests, Some(&scenario_enabled));
+        gs.system_prompt = new_prompt.clone();
+        for session in sessions.values_mut() {
+            session.system_prompt = new_prompt.clone();
+            // Replace system message in history
+            if let Some(m) = session.history.iter_mut().find(|m| m.role == "system") {
+                m.content = new_prompt.clone();
+            }
+        }
+        // Update settings snapshot
+        gs.settings.common_rules = rule_set.entries.iter().map(|e| {
+            let (kind, max_lv, names) = match &e.kind {
+                CommonRuleKind::Boolean { .. } => ("boolean".to_string(), 1u8, vec!["ON".to_string(),"OFF".to_string()]),
+                CommonRuleKind::Level { levels, .. } => ("level".to_string(), levels.iter().map(|l| l.level).max().unwrap_or(1), levels.iter().map(|l| l.name.to_string()).collect()),
+            };
+            CommonRuleSetting { label: e.label.to_string(), description: e.description.to_string(), kind, active: e.active, current_level: e.current_level, max_level: max_lv, level_names: names }
+        }).collect();
+        eprintln!("[settings] Updated and applied to all sessions.");
     }
 }
 
@@ -657,7 +672,7 @@ fn process_action(client: &Client, key: &str, gs: &GameState, sessions: &mut Has
 
 fn game_loop(client: &Client, key: &str, gs: &mut GameState, sessions: &mut HashMap<String, PlayerSession>) -> bool {
     let names: Vec<String> = { let mut v: Vec<_> = sessions.keys().cloned().collect(); v.sort(); v };
-    let mut turn = 0usize;
+    let turn = 0usize;
 
     // Shared flag: stdin thread sets to true when user types "title" or "quit"
     let exit_flag = Arc::new(Mutex::new(Option::<bool>::None)); // None=running, Some(true)=title, Some(false)=quit
@@ -703,11 +718,11 @@ fn game_loop(client: &Client, key: &str, gs: &mut GameState, sessions: &mut Hash
             match text.to_lowercase().as_str() {
                 "title"   => { write_state(gs, sessions, &names[turn % names.len()]); return true; }
                 "restart" => {
-                    if let Some(s) = sessions.get_mut(&player) { s.restart(); }
                     let mut sess = sessions.remove(&player).unwrap();
-                    opening_scene(client, key, gs, &mut sess, sessions);
-                    sessions.insert(player.clone(), sess);
-                    write_state(gs, sessions, &player);
+                    sess.restart();
+                    let mut new_sess = sess.clone();
+                    opening_scene(client, key, gs, &mut new_sess, sessions);
+                    sessions.insert(player.clone(), new_sess);
                 }
                 t if t.starts_with("__settings_update__") => {
                     let json_str = t.trim_start_matches("__settings_update__").trim();

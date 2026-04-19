@@ -32,6 +32,8 @@ export interface SetupPayload {
 type Step = 'home' | 'model' | 'scenario' | 'scenario_rules' | 'common_rules' | 'players' | 'confirm'
 
 export function SetupWizard({ data, onSubmit }: Props) {
+  const SETUP_UI_RULES = ['Character Coloring', 'Location Coloring', 'Ambient Radio', 'Narration Voice', 'Theme', 'Time Travel']
+
   const [step, setStep]                 = useState<Step>('home')
   const [model, setModel]               = useState(data.models[0]?.id ?? '')
   const [scenarioIdx, setScenarioIdx]   = useState(0)
@@ -74,12 +76,12 @@ export function SetupWizard({ data, onSubmit }: Props) {
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [step])
+  }, [step, model, scenarioIdx, scenarioRules])
 
 function handleSubmit() {
-    const validPlayers = players.slice(0, playerCount).map(n => {
+    const validPlayers = players.slice(0, playerCount).map((n, i) => {
       const name = n.trim()
-      return name ? { name } : { name: getRandomName() }
+      return name ? { name } : { name: i === 0 && !n ? getRandomName() : 'Unnamed Hero' }
     })
     onSubmit({ model, scenario_idx: scenarioIdx, scenario_rules: scenarioRules, common_rules: commonRules, players: validPlayers })
   }
@@ -183,17 +185,18 @@ function handleSubmit() {
         {/* ── Common rules ── */}
         {step === 'common_rules' && (
           <div className="setup-section">
-            <h2 className="setup-section-title">Universal GM Rules</h2>
-            <p className="setup-section-hint">These apply to every scenario.</p>
-            {data.common_rules.map((r: CommonRuleOption, i: number) => {
-              const cr = commonRules[i] ?? { active: r.default_active, current_level: r.default_level }
+            <h2 className="setup-section-title">AI Prompt Rules</h2>
+            <p className="setup-section-hint">Rules that affect GM behavior and storytelling.</p>
+            {data.common_rules.filter(r => !SETUP_UI_RULES.includes(r.label)).map((r: CommonRuleOption, i: number) => {
+              const origIdx = data.common_rules.findIndex(ar => ar.label === r.label)
+              const cr = commonRules[origIdx] ?? { active: r.default_active, current_level: r.default_level }
               return (
                 <div key={i} className="setup-rule">
                   {r.kind === 'boolean' ? (
                     <label className="setup-rule-label">
                       <input type="checkbox" className="setup-checkbox"
                         checked={cr.active}
-                        onChange={e => { const n = [...commonRules]; n[i] = { ...cr, active: e.target.checked }; setCommonRules(n); }}
+                        onChange={e => { const n = [...commonRules]; n[origIdx] = { ...cr, active: e.target.checked }; setCommonRules(n); }}
                       />
                       <span className="setup-rule-name">{r.label}</span>
                     </label>
@@ -201,9 +204,58 @@ function handleSubmit() {
                     <div className="setup-rule-level">
                       <span className="setup-rule-name">{r.label}</span>
                       <div className="setup-level-row">
-                        <input type="range" min={r.label.includes('Difficulty') ? 1 : 0} max={r.max_level} value={cr.current_level}
+                        <input type="range" min={r.label.includes('Difficulty') || r.label.includes('Side Quests') || r.label.includes('Response') ? 1 : 0} max={r.max_level} value={cr.current_level}
                           className="setup-slider"
-                          onChange={e => { const lv = Number(e.target.value); const minLv = r.label.includes('Difficulty') ? 1 : 0; const n = [...commonRules]; n[i] = { active: lv > 0, current_level: Math.max(minLv, lv) }; setCommonRules(n); }}
+                          onChange={e => { const lv = Number(e.target.value); const minLv = r.label.includes('Difficulty') || r.label.includes('Side Quests') || r.label.includes('Response') ? 1 : 0; const n = [...commonRules]; n[origIdx] = { active: lv > 0, current_level: Math.max(minLv, lv) }; setCommonRules(n); }}
+                        />
+                        <span className="setup-level-val">
+                          {cr.current_level === 0 ? 'OFF' : `${cr.current_level} — ${r.level_names[cr.current_level - 1] ?? '?'}`}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                  <p className="setup-rule-desc">{r.description}</p>
+                </div>
+              )
+            })}
+          </div>
+        )}
+
+        {step === 'common_rules' && (
+          <div className="setup-section">
+            <h2 className="setup-section-title">UI Rules</h2>
+            <p className="setup-section-hint">Visual and audio interface options.</p>
+            {data.common_rules.filter(r => SETUP_UI_RULES.includes(r.label)).map((r: CommonRuleOption, i: number) => {
+              const origIdx = data.common_rules.findIndex(ar => ar.label === r.label)
+              const cr = commonRules[origIdx] ?? { active: r.default_active, current_level: r.default_level }
+              return (
+                <div key={i} className="setup-rule">
+                  {r.label === 'Theme' ? (
+                    <div className="settings-rule-level">
+                      <span className="settings-rule-name">{r.label}</span>
+                      <select className="settings-select" value={cr.current_level}
+                        onChange={e => { const lv = Number(e.target.value); const n = [...commonRules]; n[origIdx] = { active: lv > 0, current_level: lv }; setCommonRules(n); }}
+                      >
+                        {r.level_names.map((ln, li) => (
+                          <option key={li} value={li + 1}>{ln}</option>
+                        ))}
+                      </select>
+                    </div>
+                  ) : r.kind === 'boolean' ? (
+                    <label className="setup-rule-label">
+                      <input type="checkbox" className="setup-checkbox"
+                        checked={cr.active}
+                        onChange={e => { const n = [...commonRules]; n[origIdx] = { ...cr, active: e.target.checked }; setCommonRules(n); }}
+                      />
+                      <span className="setup-rule-name">{r.label}</span>
+                    </label>
+                  ) : (
+                    <div className="setup-rule-level">
+                      <span className="setup-rule-name">{r.label}</span>
+                      <div className="setup-level-row">
+                        <input type="range" min={1} max={r.max_level} value={cr.current_level}
+                          className="setup-slider"
+                          onChange={e => { const lv = Number(e.target.value); const n = [...commonRules]; n[origIdx] = { active: lv > 0, current_level: lv }; setCommonRules(n); }}
                         />
                         <span className="setup-level-val">
                           {cr.current_level === 0 ? 'OFF' : `${cr.current_level} — ${r.level_names[cr.current_level - 1] ?? '?'}`}

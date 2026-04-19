@@ -41,8 +41,10 @@ export interface GameState {
 }
 
 export interface ImageService {
-  id: string; name: string; description: string
-  buildUrl: (prompt: string, seed: number) => string
+  id: string
+  name: string
+  description: string
+  fetchImage: (prompt: string, seed: number) => Promise<string>
 }
 
 // ── Setup wizard types ─────────────────────────────────────────────────────────

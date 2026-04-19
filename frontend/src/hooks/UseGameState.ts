@@ -55,6 +55,23 @@ export function useGameState() {
           setError(null)
           setLoading(false)
         }
+
+        // Poll for Rust errors (ignore 404, only show real errors)
+        try {
+          const er = await fetch('/api/error')
+          if (er.ok) {
+            const ed = await er.json() as { error?: string }
+            if (!cancelled && ed.error) {
+              setError(ed.error)
+              // Clear error file after reading
+              await fetch('/api/error', { method: 'DELETE' })
+            }
+          } else if (er.status === 404) {
+            // No error file - that's fine, ignore
+          }
+        } catch {
+          // Error file doesn't exist or unreachable - that's fine
+        }
       } catch {
         if (!cancelled) setError('Bridge server unreachable — run: npm run server')
       }

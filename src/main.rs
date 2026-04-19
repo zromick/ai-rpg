@@ -20,6 +20,7 @@ use prompts::{
 const STATE_FILE: &str  = "game_state.json";
 const CMD_FILE: &str    = "command_queue.json";
 const SETUP_FILE: &str  = "setup_state.json";
+const ERROR_FILE: &str  = "last_error.json";
 
 // ─── HuggingFace ─────────────────────────────────────────────────────────────
 
@@ -264,7 +265,7 @@ fn call_hf(client: &Client, key: &str, model: &str, msgs: &[Message], max_tokens
     let body = json!({ "model": model, "messages": msgs.iter().map(|m| json!({"role":m.role,"content":m.content})).collect::<Vec<_>>(), "max_tokens": max_tokens, "temperature": 0.85, "top_p": 0.95 });
     let resp = client.post(&url).header("Authorization", format!("Bearer {}", key)).header("Content-Type","application/json").json(&body).send()?;
     let status = resp.status(); let text = resp.text()?;
-    if !status.is_success() { return Err(format!("API {} : {}", status, text).into()); }
+    if !status.is_success() { let err = format!("API {} Bad Request : {}", status, text); eprintln!("[RUST] [ERROR] {}", err); let _ = std::fs::write(ERROR_FILE, serde_json::to_string(&json!({"error": err})).unwrap_or_default()); return Err(err.into()); }
     let r: HFResp = serde_json::from_str(&text).map_err(|e| format!("parse: {} | {}", e, &text[..text.len().min(300)]))?;
     r.choices.into_iter().next().map(|c| c.message.content.trim().to_string()).ok_or_else(|| "empty response".into())
 }
@@ -301,7 +302,7 @@ Produce this exact JSON (all fields required, use the exact field names shown):
 
 Critical rules:
 1. COPY ALL existing entries from current arrays unless they explicitly changed.
-2. ADD any new characters mentioned BY NAME in the GM response (guards, merchants, named NPCs, animals with roles).
+2. ADD any new characters mentioned BY NAME in the GM response (guards, merchants, named NPCs, animals with roles). EXCLUDE the word "You" — do NOT add it as a character.
 3. ADD the current location if it can be identified from context.
 4. last_visited must be the integer {turn}, not a string.
 5. clothing_update: set ONLY if clothing explicitly changed in this scene. Otherwise null (not the string "null").

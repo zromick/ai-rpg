@@ -1,4 +1,4 @@
-# ♛ Beggars to Crowns — AI RPG
+# ♛ AI RPG 
 
 Written with the help of Claude Sonnet 4.6.
 

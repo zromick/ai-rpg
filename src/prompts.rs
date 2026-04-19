@@ -751,13 +751,31 @@ pub fn common_rule_definitions() -> Vec<CommonRuleDef> {
             label: "Character Coloring",
             description: "Generate a colored portrait for the player character using the selected image engine.",
             kind: CommonRuleKind::Boolean { default: true },
-            active_fragment: "Generate a colored portrait for the player character using the image engine. Include color, lighting, and atmosphere appropriate to the scene.",
+            active_fragment: "", // UI-only rule (no AI prompt impact)
         },
         CommonRuleDef {
             label: "Location Coloring",
             description: "Generate a colored image for locations and key scenes using the selected image engine.",
             kind: CommonRuleKind::Boolean { default: true },
-            active_fragment: "Generate atmospheric images for locations, key scenes, and important moments using the image engine. Capture mood, lighting, and scale appropriately.",
+            active_fragment: "", // UI-only rule (no AI prompt impact)
+        },
+        CommonRuleDef {
+            label: "Ambient Radio",
+            description: "Play atmospheric background music that matches the scenario mood and setting.",
+            kind: CommonRuleKind::Boolean { default: true },
+            active_fragment: "", // UI-only rule (no AI prompt impact)
+        },
+        CommonRuleDef {
+            label: "Narration Voice",
+            description: "Read GM responses aloud using text-to-speech. Select a voice style in audio settings.",
+            kind: CommonRuleKind::Boolean { default: true },
+            active_fragment: "", // UI-only rule (no AI prompt impact)
+        },
+        CommonRuleDef {
+            label: "Time Travel",
+            description: "Allow the player to go back or forward in time.",
+            kind: CommonRuleKind::Boolean { default: false },
+            active_fragment: "", // UI-only rule (no AI prompt impact)
         },
 
         // ── Level: Difficulty ─────────────────────────────────────────────────
@@ -818,21 +836,21 @@ pub fn common_rule_definitions() -> Vec<CommonRuleDef> {
         CommonRuleDef {
             label: "Side Quests",
             description: "Adds randomly selected side quests the player must complete to win. \
-Level 0 = disabled; Level 1–10 = number of side quests added to win conditions.",
+Level 0 = off; Level 1–10 = number of side quests.",
             kind: CommonRuleKind::Level {
                 default: 0,
                 levels: &[
-                    LevelDef { level:  0, name: "Disabled",  description: "No side quests. Win on main condition alone.",          prompt_fragment: "" },
-                    LevelDef { level:  1, name: "1 Quest",   description: "1 side quest randomly selected and added to win condition.",  prompt_fragment: "" },
-                    LevelDef { level:  2, name: "2 Quests",  description: "2 side quests randomly selected.",                           prompt_fragment: "" },
-                    LevelDef { level:  3, name: "3 Quests",  description: "3 side quests randomly selected.",                           prompt_fragment: "" },
-                    LevelDef { level:  4, name: "4 Quests",  description: "4 side quests randomly selected.",                           prompt_fragment: "" },
-                    LevelDef { level:  5, name: "5 Quests",  description: "5 side quests randomly selected.",                           prompt_fragment: "" },
-                    LevelDef { level:  6, name: "6 Quests",  description: "6 side quests randomly selected.",                           prompt_fragment: "" },
-                    LevelDef { level:  7, name: "7 Quests",  description: "7 side quests randomly selected.",                           prompt_fragment: "" },
-                    LevelDef { level:  8, name: "8 Quests",  description: "8 side quests randomly selected.",                           prompt_fragment: "" },
-                    LevelDef { level:  9, name: "9 Quests",  description: "9 side quests randomly selected.",                           prompt_fragment: "" },
-                    LevelDef { level: 10, name: "All 10",    description: "All 10 side quests — a true completionist run.",             prompt_fragment: "" },
+                    LevelDef { level:  0, name: "Off",       description: "No side quests. Win on main condition alone.",             prompt_fragment: "" },
+                    LevelDef { level:  1, name: "1 Quest",   description: "1 side quest randomly selected.",                     prompt_fragment: "" },
+                    LevelDef { level:  2, name: "2 Quests",  description: "2 side quests randomly selected.",                    prompt_fragment: "" },
+                    LevelDef { level:  3, name: "3 Quests",  description: "3 side quests randomly selected.",                    prompt_fragment: "" },
+                    LevelDef { level:  4, name: "4 Quests",  description: "4 side quests randomly selected.",                    prompt_fragment: "" },
+                    LevelDef { level:  5, name: "5 Quests",  description: "5 side quests randomly selected.",                    prompt_fragment: "" },
+                    LevelDef { level:  6, name: "6 Quests",  description: "6 side quests randomly selected.",                    prompt_fragment: "" },
+                    LevelDef { level:  7, name: "7 Quests",  description: "7 side quests randomly selected.",                    prompt_fragment: "" },
+                    LevelDef { level:  8, name: "8 Quests",  description: "8 side quests randomly selected.",                    prompt_fragment: "" },
+                    LevelDef { level:  9, name: "9 Quests",  description: "9 side quests randomly selected.",                    prompt_fragment: "" },
+                    LevelDef { level: 10, name: "All 10",    description: "All 10 side quests — completionist run.",               prompt_fragment: "" },
                 ],
             },
             active_fragment: "",

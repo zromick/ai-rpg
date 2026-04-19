@@ -24,6 +24,8 @@ export function CharacterPanel({ player, seed, service }: Props) {
 
   const custom = Object.entries(player.character_features).filter(([k]) => !CORE_FIELDS.includes(k))
 
+  const hasPlayed = player && player.prompt_count > 0
+
   return (
     <div className="char-panel">
       {/* ── Image ── */}
@@ -31,7 +33,13 @@ export function CharacterPanel({ player, seed, service }: Props) {
         {(!url || imgState === 'loading') && (
           <div className="char-image-placeholder">
             <span className="sigil">⚗</span>
-            <p>{url ? 'Generating scene…' : 'Awaiting first turn…'}</p>
+            {url ? (
+              <p>Generating scene…</p>
+            ) : hasPlayed ? (
+              <p>Generating image…</p>
+            ) : (
+              <p>Ready</p>
+            )}
           </div>
         )}
         {imgState === 'error' && (
@@ -51,8 +59,7 @@ export function CharacterPanel({ player, seed, service }: Props) {
             onError={() => setImgState('error')}
           />
         )}
-        <div className="char-image-caption">
-          <span>{player.name}</span>
+        <div className="char-image-caption" style={{ display: 'none' }}>
           {imgState === 'loading' && url && <span className="badge loading">generating…</span>}
         </div>
       </div>

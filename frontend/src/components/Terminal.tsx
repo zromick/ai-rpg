@@ -201,6 +201,8 @@ export function Terminal({ history, playerName, isActive, mainQuest, sideQuests,
 
         {renderItems.map((item, i) => {
           if (item.type === 'history') {
+            // Skip the "Begin the game" prompt from showing
+            if (item.msg.role === 'user' && item.msg.content.startsWith('Begin the game')) return null
             return (
               <div key={item.key} className={`terminal-msg terminal-msg--${item.msg.role}`}>
                 {item.msg.role === 'user'

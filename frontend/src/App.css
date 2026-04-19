@@ -154,17 +154,20 @@ html, body, #root {
   grid-template-columns: 240px 1fr 300px;
   overflow: hidden;
   min-height: 0;
+  width: 100%;
 }
 
 .col-left, .col-right {
   overflow-y: auto;
+  overflow-x: hidden;
   border-right: 1px solid var(--border);
   scrollbar-width: thin;
   scrollbar-color: var(--border-bright) transparent;
+  flex-shrink: 0;
 }
 .col-right { border-right: none; border-left: 1px solid var(--border); }
 
-.col-center { display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
+.col-center { display: flex; flex-direction: column; min-height: 0; overflow: hidden; flex: 1; }
 
 /* ── Quest panel ────────────────────────────────────────────────────────────── */
 .quest-panel {
@@ -835,3 +838,103 @@ html, body, #root {
   cursor: pointer; padding: 0 4px;
 }
 .quest-toggle:hover { color: var(--gold); }
+
+/* Console error display */
+.console-error {
+  position: fixed;
+  bottom: 48px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(139, 46, 26, 0.95);
+  border: 1px solid var(--red-bright);
+  border-radius: var(--radius);
+  padding: 10px 16px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: #ffaaaa;
+  z-index: 50;
+  max-width: 80vw;
+  white-space: pre-wrap;
+  word-break: break-word;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+}
+
+/* Ambient Radio - inside col-right */
+.col-right .ambient-radio {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: var(--bg-panel);
+  border-top: 1px solid var(--border);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.ambient-radio .radio-controls { display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
+
+.ambient-radio .radio-play-btn {
+  background: transparent;
+  border: none;
+  color: var(--gold);
+  cursor: pointer;
+  font-size: 12px;
+  padding: 2px 6px;
+}
+
+.ambient-radio .radio-play-btn:hover { color: var(--gold-glow); }
+
+.ambient-radio .radio-nav-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-dim);
+  cursor: pointer;
+  font-size: 8px;
+  padding: 2px 4px;
+}
+
+.ambient-radio .radio-nav-btn:hover { color: var(--text); }
+
+.ambient-radio .radio-station-info { display: flex; flex-direction: column; gap: 0; flex: 1; min-width: 0; }
+.ambient-radio .radio-station-name { color: var(--gold); font-size: 9px; }
+.ambient-radio .radio-mood { color: var(--text-dim); font-size: 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ambient-radio .radio-volume { width: 50px; accent-color: var(--gold); flex-shrink: 0; }
+.ambient-radio .radio-station-list { display: none; }
+.ambient-radio .radio-attribution { display: none; }
+
+/* Narrator panel */
+.narrator-panel {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: var(--bg-panel);
+  border-top: 1px solid var(--border);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.narrator-panel .narrator-controls { display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
+
+.narrator-panel .narrator-play-btn {
+  background: transparent;
+  border: none;
+  color: var(--gold);
+  cursor: pointer;
+  font-size: 12px;
+  padding: 2px 6px;
+}
+
+.narrator-panel .narrator-play-btn:hover { color: var(--gold-glow); }
+.narrator-panel .narrator-play-btn:disabled { opacity: 0.5; }
+
+.narrator-panel .narrator-station-info { display: flex; flex-direction: column; gap: 0; flex: 1; min-width: 0; }
+.narrator-panel .narrator-station-name { color: var(--gold); font-size: 9px; }
+.narrator-panel .narrator-mood { color: var(--text-dim); font-size: 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.narrator-panel .narrator-service-list { display: none; }

@@ -3,7 +3,7 @@
 // We set the URL immediately and let the <img> element handle the loading state
 // via onLoad/onError rather than pre-loading with new Image(), which was timing out.
 
-import { useMemo } from 'react'
+import { useMemo, useState, useEffect } from 'react'
 import type { ImageService } from '../types'
 
 const STYLE = 'medieval fantasy art, dramatic lighting, painterly, cinematic, detailed, no text, no watermark, no UI elements'
@@ -25,12 +25,25 @@ export function useCharacterImage(
   seed: number,
   service: ImageService,
 ) {
-  // Build the URL — the <img> in CharacterPanel handles load/error state directly
-  const url = useMemo(() => {
+  const [url, setUrl] = useState('')
+
+  const prompt = useMemo(() => {
     if (!imagePrompt || !gmReply) return ''
-    const prompt = buildScenePrompt(imagePrompt, gmReply)
-    return service.buildUrl(prompt, seed)
-  }, [imagePrompt, gmReply, seed, service.id])
+    return buildScenePrompt(imagePrompt, gmReply)
+  }, [imagePrompt, gmReply])
+
+  useEffect(() => {
+    if (!prompt || !service?.fetchImage) return
+    let canceled = false
+
+    service.fetchImage(prompt, seed).then(url => {
+      if (!canceled) setUrl(url)
+    }).catch(() => {
+      if (!canceled) setUrl('')
+    })
+
+    return () => { canceled = true }
+  }, [prompt, seed, service?.id, service?.fetchImage])
 
   return { url }
 }

@@ -3,6 +3,8 @@ import { CharacterPanel } from './components/CharacterPanel'
 import { Terminal } from './components/Terminal'
 import { QuestPanel } from './components/QuestPanel'
 import { PlayerTabs } from './components/PlayerTabs'
+import AmbientRadio from './components/AmbientRadio'
+import Narrator from './components/Narrator'
 import { getService, DEFAULT_SERVICE_ID } from './imageServices'
 import type { ImageService } from './types'
 import { SettingsPanel } from './components/SettingsPanel'
@@ -102,6 +104,10 @@ export default function App() {
   const currentTheme = gameState.settings.common_rules.find(r => r.label === 'Theme')?.current_level ?? 1
   const themeClass = ['theme-classic', 'theme-forest', 'theme-ocean', 'theme-crimson'][currentTheme - 1] ?? 'theme-classic'
 
+  const ambientRadioEnabled = gameState.settings?.common_rules?.find(r => r.label === 'Ambient Radio')?.active ?? true
+  const narrationEnabled = gameState.settings?.common_rules?.find(r => r.label === 'Narration Voice')?.active ?? true
+  const showConsoleError = error && error.includes('[RUST]')
+
   return (
     <div className={`app ${themeClass}`}>
       <header className="topbar">
@@ -140,14 +146,25 @@ export default function App() {
         </section>
         <aside className="col-right">
           <CharacterPanel player={player} seed={nameSeed(player.name)} service={imageService} />
+          {ambientRadioEnabled && gameState.scenario && (
+            <AmbientRadio scenarioTitle={gameState.scenario} />
+          )}
+          {narrationEnabled && (
+            <Narrator enabled={narrationEnabled} />
+          )}
         </aside>
       </main>
+
+      {/* Console error display - shows Rust errors in the terminal area */}
+      {showConsoleError && (
+        <div className="console-error">
+          {error}
+        </div>
+      )}
 
       <footer className="statusbar">
         <span>Turn <strong>{player.turn}</strong></span>
         <span>Prompts: <strong>{player.prompt_count}</strong></span>
-        <span className="statusbar-sep">│</span>
-        <span>Active: <strong>{gameState.active_player}</strong></span>
         <span className="statusbar-sep">│</span>
         <span className="statusbar-updated">{new Date(gameState.updated_at).toLocaleTimeString()}</span>
       </footer>

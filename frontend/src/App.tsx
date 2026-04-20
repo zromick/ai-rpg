@@ -136,6 +136,10 @@ const [models] = useState(() => [
     }, 500)
   }, [sendCommand])
 
+  const handleTitleFromSetup = useCallback(() => {
+    setShowTitle(true)
+  }, [])
+
   const handleRestart = useCallback(async () => {
     if (!gameState) return
     const player = gameState.players.find(p => p.name === selectedPlayer) ?? gameState.players[0]
@@ -162,20 +166,34 @@ const [models] = useState(() => [
         onGooglePlayLogin={handleGooglePlayLogin}
         onGoogleLogout={handleGoogleLogout}
         onGuestPlay={() => setShowTitle(false)}
-        saveSlots={[1,2,3,4].map(slot => ({
-          slot,
-          hasData: (() => {
-            try {
-              const key = `ai_rpg_save_slot_${slot}`
-              const saved = localStorage.getItem(key)
-              if (saved) {
-                const parsed = JSON.parse(saved)
-                return !!parsed.gameState
+        saveSlots={[1,2,3,4].map(slot => {
+          let characterName: string | undefined
+          try {
+            const key = `ai_rpg_save_slot_${slot}`
+            const saved = localStorage.getItem(key)
+            if (saved) {
+              const parsed = JSON.parse(saved)
+              if (parsed.gameState && parsed.gameState.players?.[0]?.name) {
+                characterName = parsed.gameState.players[0].name
               }
-            } catch {}
-            return false
-          })()
-        }))}
+            }
+          } catch {}
+          return {
+            slot,
+            hasData: (() => {
+              try {
+                const key = `ai_rpg_save_slot_${slot}`
+                const saved = localStorage.getItem(key)
+                if (saved) {
+                  const parsed = JSON.parse(saved)
+                  return !!parsed.gameState
+                }
+              } catch {}
+              return false
+            })(),
+            characterName
+          }
+        })}
         onLoadSlot={async (slot) => {
           setCurrentSlot(slot)
           try {
@@ -185,6 +203,11 @@ const [models] = useState(() => [
               const parsed = JSON.parse(saved)
               if (parsed.gameState) {
                 console.log('Loaded from slot', slot)
+                await fetch('/api/restore', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ gameState: parsed.gameState })
+                })
               }
             }
           } catch {}
@@ -203,20 +226,34 @@ const [models] = useState(() => [
         onGooglePlayLogin={handleGooglePlayLogin}
         onGoogleLogout={handleGoogleLogout}
         onGuestPlay={() => setShowTitle(false)}
-        saveSlots={[1,2,3,4].map(slot => ({
-          slot,
-          hasData: (() => {
-            try {
-              const key = `ai_rpg_save_slot_${slot}`
-              const saved = localStorage.getItem(key)
-              if (saved) {
-                const parsed = JSON.parse(saved)
-                return !!parsed.gameState
+        saveSlots={[1,2,3,4].map(slot => {
+          let characterName: string | undefined
+          try {
+            const key = `ai_rpg_save_slot_${slot}`
+            const saved = localStorage.getItem(key)
+            if (saved) {
+              const parsed = JSON.parse(saved)
+              if (parsed.gameState && parsed.gameState.players?.[0]?.name) {
+                characterName = parsed.gameState.players[0].name
               }
-            } catch {}
-            return false
-          })()
-        }))}
+            }
+          } catch {}
+          return {
+            slot,
+            hasData: (() => {
+              try {
+                const key = `ai_rpg_save_slot_${slot}`
+                const saved = localStorage.getItem(key)
+                if (saved) {
+                  const parsed = JSON.parse(saved)
+                  return !!parsed.gameState
+                }
+              } catch {}
+              return false
+            })(),
+            characterName
+          }
+        })}
         onLoadSlot={async (slot) => {
           setCurrentSlot(slot)
           try {
@@ -226,6 +263,11 @@ const [models] = useState(() => [
               const parsed = JSON.parse(saved)
               if (parsed.gameState) {
                 console.log('Loaded from slot', slot)
+                await fetch('/api/restore', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ gameState: parsed.gameState })
+                })
               }
             }
           } catch {}
@@ -260,7 +302,7 @@ setShowTitle(false)
   if (!gameState && setupState?.phase === 'waiting' && setupState.data) {
     return (
       <div className="setup-page">
-        <SetupWizard data={setupState.data} onSubmit={handleSetupSubmit} />
+        <SetupWizard data={setupState.data} onSubmit={handleSetupSubmit} onTitle={handleTitleFromSetup} />
       </div>
     )
   }

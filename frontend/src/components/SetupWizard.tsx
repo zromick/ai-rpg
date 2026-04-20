@@ -19,6 +19,7 @@ function getRandomName(): string {
 interface Props {
   data: SetupData
   onSubmit: (payload: SetupPayload) => void
+  onTitle: () => void
 }
 
 export interface SetupPayload {
@@ -31,7 +32,7 @@ export interface SetupPayload {
 
 type Step = 'model' | 'scenario' | 'scenario_rules' | 'common_rules' | 'players' | 'confirm'
 
-export function SetupWizard({ data, onSubmit }: Props) {
+export function SetupWizard({ data, onSubmit, onTitle }: Props) {
   const SETUP_UI_RULES = ['Character Coloring', 'Location Coloring', 'Ambient Radio', 'Narration Voice', 'Theme', 'Time Travel']
 
   const [step, setStep]                 = useState<Step>('model')
@@ -104,6 +105,7 @@ function handleSubmit() {
   return (
     <div className="setup-wizard">
       <div className="setup-header">
+        <button className="setup-back-btn" onClick={onTitle} title="Return to Title">←</button>
         <span className="setup-crown">♛</span>
         <span className="setup-title">AI RPG</span>
         <span className="setup-step">Setup {stepNum} / {steps.length}</span>

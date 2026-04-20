@@ -5,7 +5,7 @@ interface Props {
   onGooglePlayLogin: (user: { id: string; name: string }) => void
   onGoogleLogout: () => void
   onGuestPlay: () => void
-  saveSlots: Array<{ slot: number; hasData: boolean }>
+  saveSlots: Array<{ slot: number; hasData: boolean; characterName?: string }>
   onLoadSlot: (slot: number) => void
   onStartNew: () => void
 }
@@ -119,7 +119,7 @@ export function TitleScreen({ googlePlayUser, onGooglePlayLogin, onGoogleLogout,
                   className={`title-btn ${slot.hasData ? 'title-btn--primary' : 'title-btn--secondary'}`}
                   onClick={() => slot.hasData ? onLoadSlot(slot.slot) : onStartNew()}
                 >
-                  {slot.hasData ? `Load Slot ${slot.slot}` : `New Slot ${slot.slot}`}
+                  {slot.hasData ? (slot.characterName ? `${slot.characterName}` : `Load Slot ${slot.slot}`) : `New Slot ${slot.slot}`}
                 </button>
               ))}
             </>

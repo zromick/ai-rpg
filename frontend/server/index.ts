@@ -140,10 +140,19 @@ try {
 })
 
 app.delete('/api/error', (_req: Request, res: Response) => {
-try {
-  if (fs.existsSync(ERROR_PATH)) fs.unlinkSync(ERROR_PATH)
-  res.json({ ok: true })
-} catch (e) { res.status(500).json({ error: String(e) }) }
+  try {
+    if (fs.existsSync(ERROR_PATH)) fs.unlinkSync(ERROR_PATH)
+    res.json({ ok: true })
+  } catch (e) { res.status(500).json({ error: String(e) }) }
+})
+
+app.post('/api/restore', (req: Request, res: Response) => {
+  const { gameState } = req.body as { gameState?: object }
+  if (!gameState) { res.status(400).json({ error: 'Missing gameState' }); return }
+  try {
+    fs.writeFileSync(STATE_PATH, JSON.stringify(gameState, null, 2))
+    res.json({ ok: true })
+  } catch (e) { res.status(500).json({ error: String(e) }) }
 })
 
 app.listen(PORT, () => {

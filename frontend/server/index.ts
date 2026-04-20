@@ -146,6 +146,14 @@ app.delete('/api/error', (_req: Request, res: Response) => {
   } catch (e) { res.status(500).json({ error: String(e) }) }
 })
 
+app.delete('/api/state', (_req: Request, res: Response) => {
+  try {
+    if (fs.existsSync(STATE_PATH)) fs.unlinkSync(STATE_PATH)
+    if (fs.existsSync(SETUP_PATH)) fs.unlinkSync(SETUP_PATH)
+    res.json({ ok: true })
+  } catch (e) { res.status(500).json({ error: String(e) }) }
+})
+
 app.post('/api/restore', (req: Request, res: Response) => {
   const { gameState } = req.body as { gameState?: object }
   if (!gameState) { res.status(400).json({ error: 'Missing gameState' }); return }

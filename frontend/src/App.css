@@ -955,9 +955,13 @@ html, body, #root {
   display: flex; align-items: center; justify-content: center;
 }
 .settings-panel {
+  position: fixed;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
   width: min(580px, 94vw); max-height: 88vh;
   background: var(--bg-panel); border: 1px solid var(--border);
   border-radius: var(--radius-lg); display: flex; flex-direction: column; overflow: hidden;
+  z-index: 1000;
 }
 .settings-header { display: flex; align-items: center; justify-content: space-between; padding: 14px 20px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
 .settings-title  { font-family: var(--font-display); font-size: 13px; color: var(--gold); letter-spacing: 0.1em; }
@@ -1190,8 +1194,16 @@ html, body, #root {
   padding: 40px;
 }
 
+.title-header {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-bottom: 32px;
+}
+
 .title-crown {
-  font-size: 72px;
+  font-size: 48px;
   color: var(--gold);
   animation: crownPulse 2s ease-in-out infinite;
 }
@@ -1231,14 +1243,52 @@ html, body, #root {
 }
 
 .title-btn--primary {
+  position: relative;
   background: var(--gold);
   border: 1px solid var(--gold);
   color: #0d0b08;
   font-weight: 600;
+  text-align: left;
 }
 
 .title-btn--primary:hover {
   background: var(--gold-dim);
+}
+
+.title-slot-info {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+}
+
+.title-slot-name {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.title-slot-meta {
+  font-size: 11px;
+  opacity: 0.75;
+}
+
+.title-slot-delete {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  font-size: 16px;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
+  transition: all 0.15s;
+}
+
+.title-slot-delete:hover {
+  color: #ff6b6b;
+  background: rgba(255, 107, 107, 0.15);
 }
 
 .title-btn--secondary {

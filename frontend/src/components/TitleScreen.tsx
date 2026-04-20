@@ -2,12 +2,14 @@ import { useState, useEffect, useCallback } from 'react'
 
 interface Props {
   googlePlayUser: { id: string; name: string } | null
+  googleDisplayName: string
   onGooglePlayLogin: (user: { id: string; name: string }) => void
   onGoogleLogout: () => void
   onGuestPlay: () => void
-  saveSlots: Array<{ slot: number; hasData: boolean; characterName?: string }>
+  saveSlots: Array<{ slot: number; hasData: boolean; characterName?: string; scenario?: string; turn?: number; themeColor?: string }>
   onLoadSlot: (slot: number) => void
-  onStartNew: () => void
+  onStartNew: (slot: number) => void
+  onDeleteSlot?: (slot: number) => void
 }
 
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || ''
@@ -41,10 +43,9 @@ async function getGoogleUserInfo(accessToken: string): Promise<string> {
   return 'Player'
 }
 
-export function TitleScreen({ googlePlayUser, onGooglePlayLogin, onGoogleLogout, onGuestPlay, saveSlots, onLoadSlot, onStartNew }: Props) {
+export function TitleScreen({ googlePlayUser, googleDisplayName, onGooglePlayLogin, onGoogleLogout, onGuestPlay, saveSlots, onLoadSlot, onStartNew, onDeleteSlot }: Props) {
   const [isLoadingGoogle, setIsLoadingGoogle] = useState(false)
   const [showLoginError, setShowLoginError] = useState(false)
-  const [userName, setUserName] = useState('Player')
 
   useEffect(() => {
     const script = document.createElement('script')
@@ -55,11 +56,8 @@ export function TitleScreen({ googlePlayUser, onGooglePlayLogin, onGoogleLogout,
   }, [])
 
   useEffect(() => {
-    if (googlePlayUser?.name && googlePlayUser.name !== 'Player') {
-      setUserName(googlePlayUser.name)
-    } else if (googlePlayUser?.id) {
+    if (googlePlayUser && !googlePlayUser.name) {
       getGoogleUserInfo(googlePlayUser.id).then(name => {
-        setUserName(name)
         onGooglePlayLogin({ ...googlePlayUser, name })
       })
     }
@@ -103,8 +101,10 @@ export function TitleScreen({ googlePlayUser, onGooglePlayLogin, onGoogleLogout,
   return (
     <div className="title-screen">
       <div className="title-screen-inner">
-        <div className="title-crown">♛</div>
-        <h1 className="title-name">AI RPG</h1>
+        <div className="title-header">
+          <span className="title-crown">♛</span>
+          <h1 className="title-name">AI RPG</h1>
+        </div>
 
         <div className="title-buttons">
           <button className="title-btn title-btn--secondary" onClick={onGuestPlay}>
@@ -117,9 +117,15 @@ export function TitleScreen({ googlePlayUser, onGooglePlayLogin, onGoogleLogout,
                 <button
                   key={slot.slot}
                   className={`title-btn ${slot.hasData ? 'title-btn--primary' : 'title-btn--secondary'}`}
-                  onClick={() => slot.hasData ? onLoadSlot(slot.slot) : onStartNew()}
+                  style={slot.hasData && slot.themeColor ? { borderColor: slot.themeColor, background: `${slot.themeColor}15` } : undefined}
+                  onClick={() => slot.hasData ? onLoadSlot(slot.slot) : onStartNew(slot.slot)}
                 >
-                  {slot.hasData ? (slot.characterName ? `${slot.characterName}` : `Load Slot ${slot.slot}`) : `New Slot ${slot.slot}`}
+                  {slot.hasData ? (
+                    <div className="title-slot-info">
+                      <span className="title-slot-name">{slot.characterName || `Slot ${slot.slot}`}</span>
+                      <span className="title-slot-meta">{slot.scenario} · Turn {slot.turn ?? '?'}</span>
+                    </div>
+                  ) : `New Slot ${slot.slot}`}
                 </button>
               ))}
             </>
@@ -138,7 +144,7 @@ export function TitleScreen({ googlePlayUser, onGooglePlayLogin, onGoogleLogout,
           {googlePlayUser ? (
             <div className="title-user-info">
               <span className="title-user-badge">✓</span>
-              Welcome, {userName}!
+              Welcome, {googleDisplayName}!
               <button className="title-logout-btn" onClick={onGoogleLogout}>Logout</button>
             </div>
           ) : (

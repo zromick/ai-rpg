@@ -33,6 +33,8 @@ export default function App() {
   const [mobileView, setMobileView] = useState<'quest' | 'terminal' | 'character'>('terminal')
   const [isMobileSize, setIsMobileSize] = useState(false)
   const [currentSlot, setCurrentSlot] = useState(1)
+  const [justRestored, setJustRestored] = useState(false)
+  const [isLoadingGame, setIsLoadingGame] = useState(false)
   const [googlePlayUser, setGooglePlayUser] = useState<{ id: string; name: string } | null>(() => {
     try {
       const saved = localStorage.getItem(SAVE_SLOT_KEY)
@@ -60,6 +62,44 @@ const [models] = useState(() => [
       setSelectedPlayer(prev => prev && gameState.players.find(p => p.name === prev) ? prev : gameState.active_player)
     }
   }, [gameState?.active_player])
+
+  useEffect(() => {
+    if (gameState && justRestored) {
+      setJustRestored(false)
+      setIsLoadingGame(false)
+    }
+  }, [gameState, justRestored])
+
+  function getScenarioTheme(scenario: string): number {
+  const s = scenario?.toLowerCase() || ''
+  if (s.includes('debt collector')) return 4  // crimson
+  if (s.includes('lost heir') || s.includes('king')) return 1  // classic
+  if (s.includes('cursed relic')) return 4  // crimson
+  if (s.includes('assassin')) return 4  // crimson
+  if (s.includes('grain') || s.includes('poison')) return 2  // forest
+  if (s.includes('forgotten temple')) return 4  // crimson
+  if (s.includes('veteran')) return 3  // ocean
+  if (s.includes('double agent')) return 3  // ocean
+  if (s.includes('beggar')) return 1  // classic
+  if (s.includes('shipwreck')) return 3  // ocean
+  if (s.includes('haunted')) return 4  // crimson
+  if (s.includes('void') || s.includes('merchant') || s.includes('space')) return 3  // ocean
+  return 1  // classic default
+}
+
+useEffect(() => {
+    if (gameState) {
+      setIsLoadingGame(false)
+      const themeRule = gameState.settings?.common_rules?.find(r => r.label === 'Theme')
+      if (themeRule) {
+        const themeIdx = themeRule.current_level - 1
+        document.body.className = ['theme-classic', 'theme-forest', 'theme-ocean', 'theme-crimson'][themeIdx] || 'theme-classic'
+      } else {
+        const scenarioTheme = getScenarioTheme(gameState.scenario)
+        document.body.className = ['theme-classic', 'theme-forest', 'theme-ocean', 'theme-crimson'][scenarioTheme - 1] || 'theme-classic'
+      }
+    }
+  }, [gameState])
 
   useEffect(() => {
     if (showSplash && !loading) {
@@ -118,16 +158,27 @@ const [models] = useState(() => [
   }, [gameState, googlePlayUser, currentSlot])
 
   const handleSetupSubmit = useCallback(async (payload: SetupPayload) => {
+    const key = `ai_rpg_save_slot_${currentSlot}_setup`
+    localStorage.removeItem(key)
     await sendCommand(FAKE_SETUP_PLAYER, `__setup_complete__ ${JSON.stringify(payload)}`)
-  }, [sendCommand])
+  }, [sendCommand, currentSlot])
 
   const handleSettingsApply = useCallback(async (update: { model?: string; common_rules?: Array<{ active: boolean; current_level: number }>; scenario_rules?: boolean[] }) => {
+    const themeIdx = gameState?.settings?.common_rules?.find(r => r.label === 'Theme')?.current_level ?? 1
+    if (update.common_rules) {
+      const newThemeRule = update.common_rules.find(r => r.current_level !== undefined)
+      if (newThemeRule) {
+        const idx = newThemeRule.current_level - 1
+        document.body.className = ['theme-classic', 'theme-forest', 'theme-ocean', 'theme-crimson'][idx] || 'theme-classic'
+      }
+    }
     await sendCommand(FAKE_SETUP_PLAYER, `__settings_update__ ${JSON.stringify(update)}`)
-  }, [sendCommand])
+  }, [sendCommand, gameState])
 
   const handleOpenSettings = useCallback(() => {
+    console.log('handleOpenSettings called, gameState:', !!gameState, 'settings:', !!gameState?.settings)
     setShowSettings(true)
-  }, [])
+  }, [gameState])
 
   const handleTitle = useCallback(async () => {
     await sendCommand(FAKE_SETUP_PLAYER, 'title')
@@ -139,6 +190,25 @@ const [models] = useState(() => [
   const handleTitleFromSetup = useCallback(() => {
     setShowTitle(true)
   }, [])
+
+  const handleStartNew = useCallback((slot: number) => {
+    setCurrentSlot(slot)
+    fetch('/api/state', { method: 'DELETE' }).catch(() => {})
+    setShowTitle(false)
+  }, [])
+
+  const handleDeleteSlot = useCallback(async (slot: number) => {
+    const key = `ai_rpg_save_slot_${slot}`
+    localStorage.removeItem(key)
+    setShowTitle(true)
+  }, [])
+
+  const handleDelete = useCallback(async () => {
+    const key = `ai_rpg_save_slot_${currentSlot}`
+    localStorage.removeItem(key)
+    fetch('/api/state', { method: 'DELETE' }).catch(() => {})
+    setShowTitle(true)
+  }, [currentSlot])
 
   const handleRestart = useCallback(async () => {
     if (!gameState) return
@@ -163,18 +233,38 @@ const [models] = useState(() => [
     return (
       <TitleScreen
         googlePlayUser={googlePlayUser}
+        googleDisplayName={googlePlayUser?.name || 'Player'}
         onGooglePlayLogin={handleGooglePlayLogin}
         onGoogleLogout={handleGoogleLogout}
         onGuestPlay={() => setShowTitle(false)}
         saveSlots={[1,2,3,4].map(slot => {
           let characterName: string | undefined
+          let scenario: string | undefined
+          let turn: number | undefined
+          let themeColor: string | undefined
           try {
             const key = `ai_rpg_save_slot_${slot}`
             const saved = localStorage.getItem(key)
             if (saved) {
               const parsed = JSON.parse(saved)
-              if (parsed.gameState && parsed.gameState.players?.[0]?.name) {
-                characterName = parsed.gameState.players[0].name
+              if (parsed.gameState) {
+                characterName = parsed.gameState.players?.[0]?.name
+                scenario = parsed.gameState.scenario
+                turn = parsed.gameState.players?.[0]?.turn
+                const s = scenario?.toLowerCase() || ''
+                if (s.includes('debt collector')) themeColor = '#8e44ad'
+                else if (s.includes('lost heir') || s.includes('king')) themeColor = '#d4af37'
+                else if (s.includes('cursed relic')) themeColor = '#e74c3c'
+                else if (s.includes('assassin')) themeColor = '#c0392b'
+                else if (s.includes('grain') || s.includes('poison')) themeColor = '#27ae60'
+                else if (s.includes('forgotten temple')) themeColor = '#9b59b6'
+                else if (s.includes('veteran')) themeColor = '#2980b9'
+                else if (s.includes('double agent')) themeColor = '#16a085'
+                else if (s.includes('beggar')) themeColor = '#d4af37'
+                else if (s.includes('shipwreck') || s.includes('obshore')) themeColor = '#1abc9c'
+                else if (s.includes('haunted')) themeColor = '#8e44ad'
+                else if (s.includes('void') || s.includes('merchant') || s.includes('space')) themeColor = '#3498db'
+                else themeColor = '#d4af37'
               }
             }
           } catch {}
@@ -191,7 +281,10 @@ const [models] = useState(() => [
               } catch {}
               return false
             })(),
-            characterName
+            characterName,
+            scenario,
+            turn,
+            themeColor
           }
         })}
         onLoadSlot={async (slot) => {
@@ -213,7 +306,7 @@ const [models] = useState(() => [
           } catch {}
           setShowTitle(false)
         }}
-        onStartNew={() => setShowTitle(false)}
+        onStartNew={handleStartNew}
       />
     )
   }
@@ -223,18 +316,33 @@ const [models] = useState(() => [
     return (
       <TitleScreen
         googlePlayUser={googlePlayUser}
+        googleDisplayName={googlePlayUser?.name || 'Player'}
         onGooglePlayLogin={handleGooglePlayLogin}
         onGoogleLogout={handleGoogleLogout}
         onGuestPlay={() => setShowTitle(false)}
         saveSlots={[1,2,3,4].map(slot => {
           let characterName: string | undefined
+          let scenario: string | undefined
+          let turn: number | undefined
+          let themeColor: string | undefined
           try {
             const key = `ai_rpg_save_slot_${slot}`
             const saved = localStorage.getItem(key)
             if (saved) {
               const parsed = JSON.parse(saved)
-              if (parsed.gameState && parsed.gameState.players?.[0]?.name) {
-                characterName = parsed.gameState.players[0].name
+              if (parsed.gameState) {
+                characterName = parsed.gameState.players?.[0]?.name
+                scenario = parsed.gameState.scenario
+                turn = parsed.gameState.players?.[0]?.turn
+                const s = scenario?.toLowerCase() || ''
+                if (s.includes('shattered') || s.includes('crown')) themeColor = '#d4af37'
+                else if (s.includes('dragon') || s.includes('fire')) themeColor = '#e74c3c'
+                else if (s.includes('shadow') || s.includes('dark')) themeColor = '#9b59b6'
+                else if (s.includes('forest') || s.includes('elf')) themeColor = '#27ae60'
+                else if (s.includes('ocean') || s.includes('sea')) themeColor = '#3498db'
+                else if (s.includes('space') || s.includes('star')) themeColor = '#8e44ad'
+                else if (s.includes('winter') || s.includes('ice')) themeColor = '#a8d5e5'
+                else themeColor = '#d4af37'
               }
             }
           } catch {}
@@ -251,7 +359,10 @@ const [models] = useState(() => [
               } catch {}
               return false
             })(),
-            characterName
+            characterName,
+            scenario,
+            turn,
+            themeColor
           }
         })}
         onLoadSlot={async (slot) => {
@@ -273,9 +384,7 @@ const [models] = useState(() => [
           } catch {}
           setShowTitle(false)
         }}
-        onStartNew={() => {
-setShowTitle(false)
-        }}
+        onStartNew={handleStartNew}
       />
     )
   }
@@ -299,7 +408,8 @@ setShowTitle(false)
   }
 
   // ── Setup wizard ──────────────────────────────────────────────────────────
-  if (!gameState && setupState?.phase === 'waiting' && setupState.data) {
+  // Only show stepper if we haven't just restored a game
+  if (!gameState && setupState?.phase === 'waiting' && setupState.data && !justRestored) {
     return (
       <div className="setup-page">
         <SetupWizard data={setupState.data} onSubmit={handleSetupSubmit} onTitle={handleTitleFromSetup} />
@@ -324,7 +434,7 @@ setShowTitle(false)
   const player = gameState.players.find(p => p.name === selectedPlayer) ?? gameState.players[0]
   if (!player) return null
 
-  const currentTheme = gameState.settings.common_rules.find(r => r.label === 'Theme')?.current_level ?? 1
+  const currentTheme = gameState.settings?.common_rules?.find(r => r.label === 'Theme')?.current_level ?? 1
   const themeClass = ['theme-classic', 'theme-forest', 'theme-ocean', 'theme-crimson'][currentTheme - 1] ?? 'theme-classic'
   const battleClass = player.battle_mode ? 'battle-mode' : player.romance_mode ? 'romance-mode' : player.win_mode ? 'win-mode' : ''
 
@@ -361,7 +471,7 @@ setShowTitle(false)
         )}
         {(isMobileSize && mobileView === 'terminal') && (
           <section className="col-center col-mobile">
-            <Terminal
+<Terminal
               history={player.history} playerName={player.name}
               isActive={player.name === gameState.active_player}
               mainQuest={gameState.main_quest} sideQuests={gameState.side_quests}
@@ -374,6 +484,8 @@ setShowTitle(false)
               onOpenSettings={handleOpenSettings}
               onTitle={handleTitle}
               onRestart={handleRestart}
+              onDelete={handleDelete}
+              isGameLoading={isLoadingGame}
               startTime={player.start_datetime}
               currentTime={player.current_datetime}
               endTime={player.end_datetime}
@@ -381,13 +493,6 @@ setShowTitle(false)
               nicknames={player.nicknames}
             />
           </section>
-        )}
-        {(isMobileSize && mobileView === 'character') && (
-          <aside className="col-right col-mobile">
-            <div className="col-right-content">
-              <CharacterPanel player={player} seed={nameSeed(player.name)} service={imageService} sendCommand={sendCommand} />
-            </div>
-          </aside>
         )}
         {!isMobileSize && (
           <>
@@ -403,13 +508,15 @@ setShowTitle(false)
                 inventory={player.inventory} sideCharacters={player.side_characters}
                 locations={player.locations}
                 characterColoringEnabled={characterColoringEnabled}
-                locationColoringEnabled={locationColoringEnabled}
-                sendCommand={sendCommand}
-                onOpenSettings={handleOpenSettings}
-                onTitle={handleTitle}
-                onRestart={handleRestart}
-                startTime={player.start_datetime}
-                currentTime={player.current_datetime}
+locationColoringEnabled={locationColoringEnabled}
+              sendCommand={sendCommand}
+              onOpenSettings={handleOpenSettings}
+              onTitle={handleTitle}
+              onRestart={handleRestart}
+              onDelete={handleDelete}
+              isGameLoading={isLoadingGame}
+              startTime={player.start_datetime}
+              currentTime={player.current_datetime}
                 endTime={player.end_datetime}
                 currentNickname={player.current_nickname}
                 nicknames={player.nicknames}

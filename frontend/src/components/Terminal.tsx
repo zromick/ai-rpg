@@ -13,6 +13,7 @@ const LOCAL_CMDS = new Set([
   'help','?',
   'title','t',
   'restart','r',
+  'delete','del',
 ])
 
 interface Props {
@@ -28,15 +29,17 @@ interface Props {
   locations: Location[]
   characterColoringEnabled: boolean
   locationColoringEnabled: boolean
-  sendCommand: (player: string, text: string) => Promise<boolean>
-onOpenSettings: () => void
+sendCommand: (player: string, text: string) => Promise<boolean>
+  onOpenSettings: () => void
   onTitle: () => void
   onRestart: () => void
+  onDelete: () => void
   startTime?: string
   currentTime?: string
   endTime?: string
   currentNickname?: string
   nicknames?: string[]
+  isGameLoading?: boolean
 }
 
 interface LocalMsg   { kind: 'local';   content: string; afterIndex: number }
@@ -54,8 +57,8 @@ type RenderItem =
 export function Terminal({ history, playerName, isActive, mainQuest, sideQuests,
   promptCount, totalChars, inventory, sideCharacters, locations,
   characterColoringEnabled, locationColoringEnabled, sendCommand,
-  onOpenSettings, onTitle, onRestart, startTime, currentTime, endTime,
-  currentNickname, nicknames: _nicknames }: Props) {
+  onOpenSettings, onTitle, onRestart, onDelete, startTime, currentTime, endTime,
+  currentNickname, nicknames: _nicknames, isGameLoading }: Props) {
 
   const bottomRef = useRef<HTMLDivElement>(null)
   const inputRef  = useRef<HTMLInputElement>(null)
@@ -64,11 +67,11 @@ export function Terminal({ history, playerName, isActive, mainQuest, sideQuests,
   const [cmdHist, setCmdHist]             = useState<string[]>([])
   const [histIdx, setHistIdx]             = useState(-1)
   const [sending, setSending]             = useState(false)
-  const [confirmAction, setConfirmAction] = useState<'restart' | 'title' | null>(null)
+  const [confirmAction, setConfirmAction] = useState<'restart' | 'title' | 'delete' | null>(null)
   const prevHistLen = useRef(history.length)
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [history, extra])
-  useEffect(() => { 
+  useEffect(() => {
     if (isActive && inputRef.current) {
       inputRef.current.focus()
       inputRef.current.click()
@@ -138,8 +141,10 @@ export function Terminal({ history, playerName, isActive, mainQuest, sideQuests,
       pushLocal(locations.length === 0 ? '🗺 LOCATIONS\n(none yet)' : `🗺 LOCATIONS\n${locations.map(l=>`• ${l.name} (turn ${l.last_visited})\n  ${l.description}`).join('\n')}`)
     else if (c === 'settings' || c === 'se')
       onOpenSettings()
+    else if (c === 'delete' || c === 'del')
+      setConfirmAction('delete')
     else if (c === 'help' || c === '?')
-      pushLocal('COMMANDS\n  quest/q         — main quest\n  sidequests/sq   — side quests\n  inventory/inv   — your items\n  npcs/n          — people met\n  locations/map   — places visited\n  stats/s         — prompt counts\n  character/c     — edit appearance (Rust terminal)\n  settings/se     — view/edit GM rules\n  restart/r       — restart your game\n  title/t         — return to title')
+      pushLocal('COMMANDS\n  quest/q         — main quest\n  sidequests/sq   — side quests\n  inventory/inv   — your items\n  npcs/n          — people met\n  locations/map   — places visited\n  stats/s         — prompt counts\n  settings/se     — view/edit GM rules\n  restart/r       — restart your game\n  delete/del      — delete character and save\n  title/t         — return to title')
     return true
   }
 
@@ -152,6 +157,9 @@ export function Terminal({ history, playerName, isActive, mainQuest, sideQuests,
       } else if (confirmAction === 'title') {
         pushLocal('Returning to title...')
         onTitle()
+      } else if (confirmAction === 'delete') {
+        pushLocal('Deleting character and returning to title screen...')
+        onDelete()
       }
     } else {
       pushLocal('Cancelled.')
@@ -161,15 +169,25 @@ export function Terminal({ history, playerName, isActive, mainQuest, sideQuests,
 
   async function handleSubmit() {
     const text = val.trim()
-    if (!text || sending) return
+    console.log('handleSubmit called with:', text)
+    if (!text || sending || isGameLoading) return
+    if (isGameLoading) {
+      pushLocal('Loading game... please wait')
+      return
+    }
     setCmdHist(prev => [text, ...prev].slice(0, 50))
     setHistIdx(-1)
     setVal('')
     if (confirmAction) { handleConfirm(text); return }
-    if (resolveLocal(text)) return
+    if (resolveLocal(text)) {
+      console.log('resolveLocal returned true')
+      return 
+    }
+    console.log('Calling sendCommand with:', playerName, text)
     setSending(true)
     setExtra(prev => [...prev, { kind: 'pending', content: text, afterIndex: history.length }])
     const ok = await sendCommand(playerName, text)
+    console.log('sendCommand result:', ok)
     setSending(false)
     if (!ok) pushLocal('⚠ Send failed — is the bridge server running?')
   }
@@ -211,7 +229,9 @@ export function Terminal({ history, playerName, isActive, mainQuest, sideQuests,
     ? `Type yes/y or no/n to confirm ${confirmAction}…`
     : sending
       ? 'Waiting for GM response…'
-      : 'Type an action or "help" for a list of commands…'
+      : isGameLoading
+        ? 'Loading game... please wait'
+        : 'Type an action or "help" for a list of commands…'
 
   return (
     <div className={`terminal ${isActive ? 'terminal--active' : ''}`}>
@@ -256,9 +276,7 @@ export function Terminal({ history, playerName, isActive, mainQuest, sideQuests,
         {confirmAction && (
           <div className="terminal-msg terminal-msg--local">
             <pre className="local-text">
-              {confirmAction === 'restart'
-                ? 'Are you sure you want to restart? Your progress will be reset. (yes/no)'
-                : 'Are you sure you want to return to the title screen? Your game will end. (yes/no)'}
+              {`Type yes/y or no/n to confirm ${confirmAction}…`}
             </pre>
           </div>
         )}

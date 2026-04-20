@@ -29,12 +29,12 @@ export interface SetupPayload {
   players: Array<{ name: string }>
 }
 
-type Step = 'home' | 'model' | 'scenario' | 'scenario_rules' | 'common_rules' | 'players' | 'confirm'
+type Step = 'model' | 'scenario' | 'scenario_rules' | 'common_rules' | 'players' | 'confirm'
 
 export function SetupWizard({ data, onSubmit }: Props) {
   const SETUP_UI_RULES = ['Character Coloring', 'Location Coloring', 'Ambient Radio', 'Narration Voice', 'Theme', 'Time Travel']
 
-  const [step, setStep]                 = useState<Step>('home')
+  const [step, setStep]                 = useState<Step>('model')
   const [model, setModel]               = useState(data.models[0]?.id ?? '')
   const [scenarioIdx, setScenarioIdx]   = useState(0)
   const [scenarioRules, setScenarioRules] = useState<boolean[]>([])
@@ -45,8 +45,7 @@ export function SetupWizard({ data, onSubmit }: Props) {
   const [playerCount, setPlayerCount]   = useState(1)
 
   function goNext() {
-    if (step === 'home')            setStep('model')
-    else if (step === 'model')          setStep('scenario')
+    if (step === 'model')          setStep('scenario')
     else if (step === 'scenario') {
       const sc = data.scenarios[scenarioIdx]
       setScenarioRules(sc.scenario_rules.map(r => r.default))
@@ -58,8 +57,7 @@ export function SetupWizard({ data, onSubmit }: Props) {
   }
 
   function goBack() {
-    if (step === 'model')         setStep('home')
-    else if (step === 'scenario') setStep('model')
+    if (step === 'scenario') setStep('model')
     else if (step === 'scenario_rules') setStep('scenario')
     else if (step === 'common_rules')   setStep('scenario_rules')
     else if (step === 'players')        setStep('common_rules')
@@ -74,12 +72,11 @@ export function SetupWizard({ data, onSubmit }: Props) {
         if (e.key === 'Enter') {
           e.preventDefault()
           if (step === 'confirm') handleSubmit()
-          else if (step === 'home') goNext()
           else goNext()
         }
         if (e.key === 'ArrowLeft') {
           e.preventDefault()
-          goBack()
+          if (step !== 'model') goBack()
         }
         if (e.key === 'ArrowRight') {
           e.preventDefault()
@@ -101,7 +98,7 @@ function handleSubmit() {
   }
 
   const scenario = data.scenarios[scenarioIdx]
-  const steps: Step[] = ['home','model','scenario','scenario_rules','common_rules','players','confirm']
+  const steps: Step[] = ['model','scenario','scenario_rules','common_rules','players','confirm']
   const stepNum = steps.indexOf(step) + 1
 
   return (
@@ -119,20 +116,6 @@ function handleSubmit() {
       </div>
 
       <div className="setup-body">
-
-        {/* ── Home / New or Continue ── */}
-        {step === 'home' && (
-          <div className="setup-section">
-            <h2 className="setup-section-title">Welcome to AI RPG</h2>
-            <p className="setup-section-hint">Choose how to begin your adventure.</p>
-            <div className="setup-list">
-              <button className="setup-item setup-item--selected" onClick={goNext}>
-                <span className="setup-item-label">Start New Game</span>
-                <span className="setup-item-sub">Begin a fresh adventure</span>
-              </button>
-            </div>
-          </div>
-        )}
 
         {/* ── Model ── */}
         {step === 'model' && (
@@ -304,7 +287,7 @@ function handleSubmit() {
                 <span className="setup-player-num">Player {i+1}</span>
                 <input className="setup-player-input" type="text"
                   value={players[i] ?? ''}
-                  placeholder={!players[i] ? getRandomName() : `Enter name…`}
+                  placeholder="Enter Name..."
                   onChange={e => { const n = [...players]; n[i] = e.target.value; setPlayers(n); }}
                 />
               </div>
@@ -334,10 +317,10 @@ function handleSubmit() {
 
       {/* ── Nav ── */}
       <div className="setup-nav">
-        {step !== 'home' && <button className="setup-btn setup-btn--back" onClick={goBack}>← Back (←)</button>}
+        {step !== 'model' && <button className="setup-btn setup-btn--back" onClick={goBack}>Back (←)</button>}
         {step !== 'confirm'
-          ? <button className="setup-btn setup-btn--next" onClick={goNext}>Next → (Enter)</button>
-          : <button className="setup-btn setup-btn--start" onClick={handleSubmit}>♛ Begin Adventure (Enter)</button>
+          ? <button className="setup-btn setup-btn--next" onClick={goNext}>Next (→ / ↵)</button>
+          : <button className="setup-btn setup-btn--start" onClick={handleSubmit}>♛ Begin Adventure (→ / ↵)</button>
         }
       </div>
     </div>

@@ -10,6 +10,10 @@ import type { ImageService } from './types'
 import { SettingsPanel } from './components/SettingsPanel'
 import { useGameState } from './hooks/UseGameState'
 import { SetupPayload, SetupWizard } from './components/SetupWizard'
+import { TitleScreen } from './components/TitleScreen'
+import { SplashScreen } from './components/SplashScreen'
+
+const SAVE_SLOT_KEY = 'ai_rpg_save_slot_1'
 
 function nameSeed(name: string): number {
   let h = 0; for (const c of name) h = (Math.imul(31, h) + c.charCodeAt(0)) | 0; return Math.abs(h)
@@ -19,12 +23,24 @@ const FAKE_SETUP_PLAYER = '__setup__'
 
 export default function App() {
   const { gameState, setupState, error, loading, sendCommand } = useGameState()
-  const [selectedPlayer, setSelectedPlayer] = useState('')
+  const [selectedPlayer, setSelectedPlayer]     = useState('')
   const [imageService, setImageService]     = useState<ImageService>(getService(DEFAULT_SERVICE_ID))
   const [showSettings, setShowSettings]     = useState(false)
+  const [confirmAction, _setConfirmAction] = useState<'restart' | 'title' | null>(null)
+  const [showSplash, setShowSplash] = useState(true)
+  const [showTitle, setShowTitle] = useState(false)
+  const [googlePlayUser, setGooglePlayUser] = useState<{ id: string; name: string } | null>(() => {
+    try {
+      const saved = localStorage.getItem(SAVE_SLOT_KEY)
+      if (saved) {
+        const parsed = JSON.parse(saved)
+        if (parsed.googlePlayUser) return parsed.googlePlayUser
+      }
+    } catch {}
+    return null
+  })
 const [models] = useState(() => [
     { label:'Llama 3.1 8B Instruct (default)', id:'meta-llama/Llama-3.1-8B-Instruct' },
-    { label:'Llama 3.2 3B Instruct',         id:'meta-llama/Llama-3.2-3B-Instruct' },
     { label:'Gemma 2 9B IT',               id:'google/gemma-2-9b-it' },
     { label:'Mistral 7B v0.3',                 id:'mistralai/Mistral-7B-Instruct-v0.3' },
     { label:'Mistral Nemo 2407',              id:'mistralai/Mistral-Nemo-Instruct-2407' },
@@ -33,7 +49,6 @@ const [models] = useState(() => [
     { label:'Llama 3.1 8B Abliterated',      id:'chaldene/Llama-3.1-8B-Instruct-Abliterated' },
     { label:'Mixtral 8x7B',                   id:'mistralai/Mixtral-8x7B-Instruct-v0.1' },
     { label:'Phi-3 Medium 128k',            id:'microsoft/Phi-3-medium-128k-instruct' },
-    { label:'Qwen 2.5 7B Instruct',           id:'Qwen/Qwen2.5-7B-Instruct' },
   ])
 
   useEffect(() => {
@@ -42,6 +57,43 @@ const [models] = useState(() => [
     }
   }, [gameState?.active_player])
 
+  useEffect(() => {
+    if (showSplash && !loading) {
+      const timer = setTimeout(() => {
+        setShowSplash(false)
+        setShowTitle(true)
+      }, 3000)
+      return () => clearTimeout(timer)
+    }
+  }, [loading, showSplash])
+
+  const handleSplashComplete = useCallback(() => {
+    setShowSplash(false)
+    setShowTitle(true)
+  }, [])
+
+  const handleGooglePlayLogin = useCallback((user: { id: string; name: string }) => {
+    setGooglePlayUser(user)
+    localStorage.setItem(SAVE_SLOT_KEY, JSON.stringify({ googlePlayUser: user, savedAt: new Date().toISOString() }))
+  }, [])
+
+  useEffect(() => {
+    if (gameState && googlePlayUser) {
+      try {
+        const existing = localStorage.getItem(SAVE_SLOT_KEY)
+        const parsed = existing ? JSON.parse(existing) : {}
+        localStorage.setItem(SAVE_SLOT_KEY, JSON.stringify({
+          ...parsed,
+          googlePlayUser,
+          gameState,
+          savedAt: new Date().toISOString()
+        }))
+      } catch (e) {
+        console.warn('Failed to save game to cloud', e)
+      }
+    }
+  }, [gameState, googlePlayUser])
+
   const handleSetupSubmit = useCallback(async (payload: SetupPayload) => {
     await sendCommand(FAKE_SETUP_PLAYER, `__setup_complete__ ${JSON.stringify(payload)}`)
   }, [sendCommand])
@@ -49,6 +101,10 @@ const [models] = useState(() => [
   const handleSettingsApply = useCallback(async (update: { model?: string; common_rules?: Array<{ active: boolean; current_level: number }>; scenario_rules?: boolean[] }) => {
     await sendCommand(FAKE_SETUP_PLAYER, `__settings_update__ ${JSON.stringify(update)}`)
   }, [sendCommand])
+
+  const handleOpenSettings = useCallback(() => {
+    setShowSettings(true)
+  }, [])
 
   const handleTitle = useCallback(async () => {
     await sendCommand(FAKE_SETUP_PLAYER, 'title')
@@ -60,6 +116,95 @@ const [models] = useState(() => [
     if (player) await sendCommand(player.name, 'restart')
   }, [sendCommand, gameState, selectedPlayer])
 
+  // confirmAction kept for potential future use in confirm dialogs
+  const _confirmAction = confirmAction
+  void _confirmAction
+
+  // ── Splash: always show first when loading ──────────────────────────────────────────────
+  if (showSplash) {
+    return <SplashScreen onComplete={handleSplashComplete} />
+  }
+
+  // ── Title screen ─────────────────────────────────────────────────────────────────
+  if (showTitle) {
+    return (
+      <TitleScreen
+        googlePlayUser={googlePlayUser}
+        onGooglePlayLogin={handleGooglePlayLogin}
+        onGuestPlay={() => setShowTitle(false)}
+        saveSlots={[1,2,3,4].map(slot => ({
+          slot,
+          hasData: (() => {
+            try {
+              const key = `ai_rpg_save_slot_${slot}`
+              const saved = localStorage.getItem(key)
+              if (saved) {
+                const parsed = JSON.parse(saved)
+                return !!parsed.gameState
+              }
+            } catch {}
+            return false
+          })()
+        }))}
+        onLoadSlot={async (slot) => {
+          try {
+            const key = `ai_rpg_save_slot_${slot}`
+            const saved = localStorage.getItem(key)
+            if (saved) {
+              const parsed = JSON.parse(saved)
+              if (parsed.gameState) {
+                console.log('Loaded from slot', slot)
+              }
+            }
+          } catch {}
+          setShowTitle(false)
+        }}
+        onStartNew={() => setShowTitle(false)}
+      />
+    )
+  }
+
+  // ── Show title screen before game starts if there's saved game but no active game ─
+  if (!gameState && !setupState) {
+    return (
+      <TitleScreen
+        googlePlayUser={googlePlayUser}
+        onGooglePlayLogin={handleGooglePlayLogin}
+        onGuestPlay={() => setShowTitle(false)}
+        saveSlots={[1,2,3,4].map(slot => ({
+          slot,
+          hasData: (() => {
+            try {
+              const key = `ai_rpg_save_slot_${slot}`
+              const saved = localStorage.getItem(key)
+              if (saved) {
+                const parsed = JSON.parse(saved)
+                return !!parsed.gameState
+              }
+            } catch {}
+            return false
+          })()
+        }))}
+        onLoadSlot={async (slot) => {
+          try {
+            const key = `ai_rpg_save_slot_${slot}`
+            const saved = localStorage.getItem(key)
+            if (saved) {
+              const parsed = JSON.parse(saved)
+              if (parsed.gameState) {
+                console.log('Loaded from slot', slot)
+              }
+            }
+          } catch {}
+          setShowTitle(false)
+        }}
+        onStartNew={() => {
+          setShowTitle(false)
+        }}
+      />
+    )
+  }
+
   // ── Splash: waiting for Rust ──────────────────────────────────────────────
   if (loading && !setupState && !gameState) {
     return (
@@ -70,6 +215,9 @@ const [models] = useState(() => [
           <p className="splash-sub">Waiting for game server…</p>
           <p className="splash-hint">Run <code>cargo run --release</code> in the project root.</p>
           {error && <p className="splash-error">{error}</p>}
+          <button className="splash-continue-btn" onClick={() => window.location.reload()}>
+            Continue existing game
+          </button>
         </div>
       </div>
     )
@@ -103,6 +251,7 @@ const [models] = useState(() => [
 
   const currentTheme = gameState.settings.common_rules.find(r => r.label === 'Theme')?.current_level ?? 1
   const themeClass = ['theme-classic', 'theme-forest', 'theme-ocean', 'theme-crimson'][currentTheme - 1] ?? 'theme-classic'
+  const battleClass = player.battle_mode ? 'battle-mode' : player.romance_mode ? 'romance-mode' : player.win_mode ? 'win-mode' : ''
 
   const ambientRadioEnabled = gameState.settings?.common_rules?.find(r => r.label === 'Ambient Radio')?.active ?? true
   const narrationEnabled = gameState.settings?.common_rules?.find(r => r.label === 'Narration Voice')?.active ?? true
@@ -111,7 +260,7 @@ const [models] = useState(() => [
   const showConsoleError = error && error.includes('[RUST]')
 
   return (
-    <div className={`app ${themeClass}`}>
+    <div className={`app ${themeClass} ${battleClass}`}>
       <header className="topbar">
         <div className="topbar-left">
           <span className="topbar-crown">♛</span>
@@ -144,7 +293,7 @@ const [models] = useState(() => [
             characterColoringEnabled={characterColoringEnabled}
             locationColoringEnabled={locationColoringEnabled}
             sendCommand={sendCommand}
-            onOpenSettings={() => setShowSettings(true)}
+            onOpenSettings={handleOpenSettings}
             onTitle={handleTitle}
             onRestart={handleRestart}
             startTime={player.start_datetime}
@@ -156,10 +305,10 @@ const [models] = useState(() => [
         </section>
         <aside className="col-right">
           <div className="col-right-content">
-            <CharacterPanel player={player} seed={nameSeed(player.name)} service={imageService} />
+            <CharacterPanel player={player} seed={nameSeed(player.name)} service={imageService} sendCommand={sendCommand} />
           </div>
           {ambientRadioEnabled && gameState.scenario && (
-            <AmbientRadio scenarioTitle={gameState.scenario} />
+            <AmbientRadio scenarioTitle={gameState.scenario} isBattle={player.battle_mode} isRomance={player.romance_mode} isWin={player.win_mode} />
           )}
           {narrationEnabled && (
             <Narrator enabled={narrationEnabled} />

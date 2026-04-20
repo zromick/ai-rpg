@@ -7,6 +7,7 @@ interface Props {
   player: PlayerState
   seed: number
   service: ImageService
+  sendCommand?: (player: string, text: string) => Promise<boolean>
 }
 
 const CORE_FIELDS = [
@@ -34,11 +35,14 @@ function buildEntityPrompt(entity: FocusedEntity): string {
   return ''
 }
 
-export function CharacterPanel({ player, seed, service }: Props) {
+export function CharacterPanel({ player, seed, service, sendCommand }: Props) {
   const { url } = useCharacterImage(player.image_prompt, player.last_gm_reply, seed, service)
   const [imgState, setImgState] = useState<'loading' | 'loaded' | 'error'>('loading')
   const [activeTab, setActiveTab] = useState<'features' | 'inventory' | 'characters' | 'locations'>('features')
   const [focusedEntity, setFocusedEntity] = useState<FocusedEntity>(null)
+  const [editMode, setEditMode] = useState(false)
+  const [editFields, setEditFields] = useState<Record<string, string>>({})
+  const [isGenerating, setIsGenerating] = useState(false)
 
   const focusedPrompt = useMemo(() => buildEntityPrompt(focusedEntity), [focusedEntity])
   const { url: focusedUrl } = useCharacterImage(focusedPrompt, '', seed + 1, service)
@@ -58,6 +62,41 @@ export function CharacterPanel({ player, seed, service }: Props) {
   const custom = Object.entries(player.character_features).filter(([k]) => !CORE_FIELDS.includes(k))
 
   const hasPlayed = player && player.prompt_count > 0
+
+  const startEditMode = () => {
+    const initialFields: Record<string, string> = {}
+    Object.entries(player.character_features).forEach(([k, v]) => {
+      if (v && v !== 'none') initialFields[k] = v
+    })
+    setEditFields(initialFields)
+    setEditMode(true)
+  }
+
+  const exitEditMode = () => {
+    setEditMode(false)
+    setEditFields({})
+  }
+
+  const updateField = (field: string, value: string) => {
+    setEditFields(prev => ({ ...prev, [field]: value }))
+  }
+
+  const saveAndGenerate = async () => {
+    if (!sendCommand) return
+    setIsGenerating(true)
+    const commands: string[] = []
+    Object.entries(editFields).forEach(([field, value]) => {
+      const originalValue = player.character_features[field]
+      if (originalValue !== value) {
+        commands.push(`set ${field} ${value}`)
+      }
+    })
+    for (const cmd of commands) {
+      await sendCommand(player.name, cmd)
+    }
+    exitEditMode()
+    setIsGenerating(false)
+  }
 
   return (
     <div className="char-panel">
@@ -117,26 +156,73 @@ export function CharacterPanel({ player, seed, service }: Props) {
       {/* ── Tab content ── */}
       <div className="char-tab-content">
         {activeTab === 'features' && (
-          <table className="feature-table">
-            <tbody>
-              {CORE_FIELDS.map(key => {
-                const val = player.character_features[key]
-                if (!val || val === 'none') return null
-                return (
-                  <tr key={key}>
-                    <td className="feat-key">{key.replace('_', ' ')}</td>
-                    <td className="feat-val">{val}</td>
-                  </tr>
-                )
-              })}
-              {custom.map(([k, v]) => (
-                <tr key={k} className="custom-row">
-                  <td className="feat-key">{k.replace('_', ' ')}</td>
-                  <td className="feat-val">{v}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <>
+            <div className="char-features-header">
+              <span className="features-title">Character Features</span>
+              {!editMode && (
+                <button className="char-edit-btn" onClick={startEditMode} title="Edit Character">
+                  ✎ Edit
+                </button>
+              )}
+            </div>
+            {editMode ? (
+              <div className="char-edit-form">
+                {CORE_FIELDS.filter(key => key !== 'current_location').map(key => (
+                  <div key={key} className="char-edit-field">
+                    <label className="char-edit-label">{key.replace('_', ' ')}</label>
+                    <input
+                      type="text"
+                      className="char-edit-input"
+                      value={editFields[key] ?? ''}
+                      onChange={e => updateField(key, e.target.value)}
+                      placeholder={player.character_features[key] || `Enter ${key.replace('_', ' ')}`}
+                    />
+                  </div>
+                ))}
+                {custom.map(([k, v]) => (
+                  <div key={k} className="char-edit-field">
+                    <label className="char-edit-label">{k.replace('_', ' ')}</label>
+                    <input
+                      type="text"
+                      className="char-edit-input"
+                      value={editFields[k] ?? ''}
+                      onChange={e => updateField(k, e.target.value)}
+                      placeholder={v}
+                    />
+                  </div>
+                ))}
+                <div className="char-edit-actions">
+                  <button className="char-edit-cancel" onClick={exitEditMode}>
+                    ✕ Cancel
+                  </button>
+                  <button className="char-edit-save" onClick={saveAndGenerate} disabled={isGenerating}>
+                    {isGenerating ? '⟳ Generating...' : '✓ Save & Generate'}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <table className="feature-table">
+                <tbody>
+                  {CORE_FIELDS.map(key => {
+                    const val = player.character_features[key]
+                    if (!val || val === 'none') return null
+                    return (
+                      <tr key={key}>
+                        <td className="feat-key">{key.replace('_', ' ')}</td>
+                        <td className="feat-val">{val}</td>
+                      </tr>
+                    )
+                  })}
+                  {custom.map(([k, v]) => (
+                    <tr key={k} className="custom-row">
+                      <td className="feat-key">{k.replace('_', ' ')}</td>
+                      <td className="feat-val">{v}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </>
         )}
 
         {activeTab === 'inventory' && (
@@ -161,7 +247,7 @@ export function CharacterPanel({ player, seed, service }: Props) {
               : player.side_characters.map((c, i) => (
                   <div key={i} className="world-item world-item--char" onClick={() => setFocusedEntity({ type: 'character', char: c })}>
                     <div className="world-item-header">
-                      <span className="world-item-name" data-status={c.relation}>{c.name}</span>
+                      <span className="world-item-name" data-status={c.outline_color ? 'custom' : c.relation} style={c.outline_color ? { borderBottomColor: c.outline_color } : undefined}>{c.name}</span>
                       <span className={`world-item-relation relation--${c.relation}`}>{c.relation}</span>
                     </div>
                     <span className="world-item-note">{c.description}</span>

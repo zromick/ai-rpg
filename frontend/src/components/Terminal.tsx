@@ -55,7 +55,7 @@ export function Terminal({ history, playerName, isActive, mainQuest, sideQuests,
   promptCount, totalChars, inventory, sideCharacters, locations,
   characterColoringEnabled, locationColoringEnabled, sendCommand,
   onOpenSettings, onTitle, onRestart, startTime, currentTime, endTime,
-  currentNickname, nicknames }: Props) {
+  currentNickname, nicknames: _nicknames }: Props) {
 
   const bottomRef = useRef<HTMLDivElement>(null)
   const inputRef  = useRef<HTMLInputElement>(null)
@@ -68,7 +68,12 @@ export function Terminal({ history, playerName, isActive, mainQuest, sideQuests,
   const prevHistLen = useRef(history.length)
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [history, extra])
-  useEffect(() => { if (isActive) inputRef.current?.focus() }, [isActive])
+  useEffect(() => { 
+    if (isActive && inputRef.current) {
+      inputRef.current.focus()
+      inputRef.current.click()
+    }
+  }, [isActive])
 
   // When history grows, remove pending extras whose text matches a new user message
   useEffect(() => {
@@ -100,8 +105,7 @@ export function Terminal({ history, playerName, isActive, mainQuest, sideQuests,
   function resolveLocal(cmd: string): boolean {
     const c = cmd.trim().toLowerCase()
     if (c === 'title' || c === 't') {
-      pushLocal('Returning to title screen...')
-      onTitle()
+      setConfirmAction('title')
       return true
     }
     if (c === 'restart' || c === 'r') {
@@ -113,8 +117,19 @@ export function Terminal({ history, playerName, isActive, mainQuest, sideQuests,
       pushLocal(`♛ MAIN QUEST\n${mainQuest}`)
     else if (c === 'sidequests' || c === 'sidequest' || c === 'sq')
       pushLocal(sideQuests.length === 0 ? '⚔ SIDE QUESTS\nNone active.' : `⚔ SIDE QUESTS\n${sideQuests.map((q,i)=>`[${i+1}] ${q.title}\n    ${q.description}`).join('\n')}`)
-    else if (c === 'stats' || c === 's')
-      pushLocal(`📊 STATS — ${playerName}\nPrompts: ${promptCount}  ·  Chars: ${totalChars}\nStart: ${startTime || '--'}\nCurrent: ${currentTime || '--'}${endTime ? '\nEnd: '+endTime : ''}`)
+    else if (c === 'stats' || c === 's') {
+      const lines = [`📊 STATS — ${playerName}`, `Total Prompts: ${promptCount}`, `Total Chars: ${totalChars}`, `Start Time: ${startTime || '-'}`, `Current Time: ${currentTime || '-'}`, `End Time: ${endTime || '-'}`]
+      if (history.length > 0) {
+        lines.push('', '--- Prompt History ---')
+        history.forEach((msg, i) => {
+          if (msg.role === 'user') {
+            const content = msg.content.length > 60 ? msg.content.slice(0, 60) + '...' : msg.content
+            lines.push(`[${i + 1}] ${content} (${msg.content.length} chars)`)
+          }
+        })
+      }
+      pushLocal(lines.join('\n'))
+    }
     else if (c === 'inventory' || c === 'inv')
       pushLocal(inventory.length === 0 ? '🎒 INVENTORY\n(empty)' : `🎒 INVENTORY\n${inventory.map(i=>`• ${i.name} ×${i.quantity}${i.note ? '  — '+i.note : ''}`).join('\n')}`)
     else if (c === 'npcs' || c === 'n' || c === 'characters' || c === 'chars')

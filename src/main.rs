@@ -32,16 +32,14 @@ struct ModelOption { label: &'static str, id: &'static str }
 fn available_models() -> Vec<ModelOption> {
     vec![
         ModelOption { label: "Llama 3.1 8B Instruct (default)", id: "meta-llama/Llama-3.1-8B-Instruct" },
-        ModelOption { label: "Llama 3.2 3B Instruct",           id: "meta-llama/Llama-3.2-3B-Instruct" },
         ModelOption { label: "Gemma 2 9B IT",                   id: "google/gemma-2-9b-it" },
         ModelOption { label: "Mistral 7B v0.3",                 id: "mistralai/Mistral-7B-Instruct-v0.3" },
-        ModelOption { label: "Mistral Nemo 2407",               id: "mistralai/Mistral-Nemo-Instruct-2407" },
+        ModelOption { label: "Mistral Nemo 2407",              id: "mistralai/Mistral-Nemo-Instruct-2407" },
         ModelOption { label: "Zephyr 7B Beta",                  id: "HuggingFaceH4/zephyr-7b-beta" },
         ModelOption { label: "Hermes 3 Llama 3.1 8B",           id: "NousResearch/Hermes-3-Llama-3.1-8B" },
         ModelOption { label: "Llama 3.1 8B Abliterated",        id: "chaldene/Llama-3.1-8B-Instruct-Abliterated" },
         ModelOption { label: "Mixtral 8x7B",                    id: "mistralai/Mixtral-8x7B-Instruct-v0.1" },
         ModelOption { label: "Phi-3 Medium 128k",               id: "microsoft/Phi-3-medium-128k-instruct" },
-        ModelOption { label: "Qwen 2.5 7B",                     id: "Qwen/Qwen2.5-7B-Instruct" },
     ]
 }
 
@@ -122,6 +120,8 @@ pub struct WorldState {
     pub end_datetime: Option<String>,
     pub nicknames: Vec<String>,
     pub current_nickname: Option<String>,
+    #[serde(default)]
+    pub battle_mode: bool,
     pub turn: u64,
 }
 
@@ -199,11 +199,13 @@ struct PlayerSession {
 
 impl PlayerSession {
     fn new(name: &str, system_prompt: &str, seed: u64, start_datetime: &str) -> Self {
-        let mut world = WorldState::default();
-        world.start_datetime = Some(start_datetime.to_string());
-        world.current_datetime = Some(start_datetime.to_string());
-        world.nicknames.push(name.to_string());
-        world.current_nickname = Some(name.to_string());
+        let world = WorldState {
+            start_datetime: Some(start_datetime.to_string()),
+            current_datetime: Some(start_datetime.to_string()),
+            nicknames: vec![name.to_string()],
+            current_nickname: Some(name.to_string()),
+            ..Default::default()
+        };
         Self {
             stats: PlayerStats { name: name.to_string(), prompt_count: 0, total_chars: 0, prompt_log: vec![] },
             history: vec![Message { role: "system".to_string(), content: system_prompt.to_string() }],
@@ -278,6 +280,7 @@ fn write_state(gs: &GameState, sessions: &HashMap<String, PlayerSession>, active
             "end_datetime": s.world.end_datetime,
             "nicknames": s.world.nicknames,
             "current_nickname": s.world.current_nickname,
+            "battle_mode": s.world.battle_mode,
             "turn": s.world.turn,
             "history": s.history.iter().filter(|m| m.role != "system").collect::<Vec<_>>(),
         })
@@ -362,7 +365,8 @@ Produce this exact JSON (all fields required, use the exact field names shown):
   "game_won": true or false,
   "clothing_update": "new clothing description" or null,
   "new_nickname": "any nickname or title the player earns (e.g., 'the Brave', 'Cora Brightblade', 'Captain')" or null,
-  "completed_quest_step": "number (1-indexed) of quest step completed, or null if none" or null
+  "completed_quest_step": "number (1-indexed) of quest step completed, or null if none" or null,
+  "battle_mode": true or false
 }}
 
 Critical rules:
@@ -412,7 +416,8 @@ Critical rules:
                     let game_won  = v["game_won"].as_bool().unwrap_or(false);
                     let new_nickname = v["new_nickname"].as_str().filter(|s| !s.trim().is_empty() && *s != "null").map(str::to_string);
                     let completed_step = v["completed_quest_step"].as_u64().map(|n| n as u32);
-                    let mut new_world = WorldState { inventory: new_inv, side_characters: new_chars, locations: new_locs, current_location: curr_loc, current_datetime: curr_time, turn: world.turn+1, ..Default::default() };
+                    let battle_mode = v["battle_mode"].as_bool().unwrap_or(false);
+                    let mut new_world = WorldState { inventory: new_inv, side_characters: new_chars, locations: new_locs, current_location: curr_loc, current_datetime: curr_time, turn: world.turn+1, battle_mode, ..Default::default() };
                     new_world.start_datetime = world.start_datetime.clone();
                     if let Some(nn) = new_nickname {
                         if !nn.is_empty() && !world.nicknames.contains(&nn) {

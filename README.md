@@ -94,34 +94,28 @@ The browser UI mirrors the Rust terminal and adds visual context.
 ### Features
 
 - **Scene images** — generated after every GM reply using the character's exact
-  appearance + the first sentence of the GM's response. Free, no key required.
-- **Interactive input** — type commands directly in the browser. Local commands
-  (`quest`, `sidequests`, `sq`, `stats`, `help`) are handled in the UI instantly.
-  **Note:** the browser cannot currently _send_ new actions to the Rust game — you
-  still type actions in the Rust terminal. The input box is for local commands and
-  future write-endpoint support.
+  appearance + the first sentence of the GM's response.
+- **Interactive input** — type commands directly in the browser and send to Rust.
 - **Typewriter effect** — new GM responses type themselves out
 - **Multi-player tabs** — switch between players' views
 - **Image engine picker** — swap image styles in the topbar dropdown
-- **Live polling** — auto-refreshes every 2s when `game_state.json` changes
+- **Live polling** — auto-refreshes when `game_state.json` changes
+- **Battle mode** — auto-switches theme and music during combat/tense moments
 
 ### Image engines
 
-All engines are **free with no API key**. They are all Pollinations.ai variants
-(the only free image API that works as a plain `<img src="...">`):
+Uses HuggingFace Inference API (requires API token):
 
 | Engine | Style |
 |--------|-------|
-| Flux (default) | Best quality, FLUX model |
-| Flux Schnell | Faster, slightly lower quality |
-| Turbo | Fastest, SD Turbo backend |
+| FLUX.1 Schnell (default) | Black Forest Labs, fast |
+| FLUX.1 Dev | Higher quality, slower |
 | Dark Fantasy | Brooding oil-painting atmosphere |
 | Painterly | Impressionist brushstroke texture |
 | Anime | Illustrated anime / manga aesthetic |
 | Portrait Focus | Tight character face crop |
 | Ink Sketch | Pen-and-ink etching style |
 | Widescreen Scene | Wide cinematic environment shot |
-| Lorem Picsum | Random scenic photo (layout testing) |
 
 ---
 
@@ -159,7 +153,6 @@ All engines are **free with no API key**. They are all Pollinations.ai variants
 | Model | Notes |
 |-------|-------|
 | `meta-llama/Llama-3.1-8B-Instruct` *(default)* | Best storytelling on free tier |
-| `meta-llama/Llama-3.2-3B-Instruct` | Lighter and faster |
 | `google/gemma-2-9b-it` | Google instruction-tuned |
 | `mistralai/Mistral-7B-Instruct-v0.3` | Reliable and efficient |
 | `mistralai/Mistral-Nemo-Instruct-2407` | Mistral Nemo series |
@@ -168,7 +161,6 @@ All engines are **free with no API key**. They are all Pollinations.ai variants
 | `chaldene/Llama-3.1-8B-Instruct-Abliterated` | Uncensored variant |
 | `mistralai/Mixtral-8x7B-Instruct-v0.1` | Mixture-of-experts, high quality |
 | `microsoft/Phi-3-medium-128k-instruct` | Long context window |
-| `Qwen/Qwen2.5-7B-Instruct` | Alibaba multilingual model |
 
 All models use `https://router.huggingface.co/v1/chat/completions`.
 

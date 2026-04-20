@@ -17,7 +17,8 @@ export interface PlayerState {
   name: string; prompt_count: number; total_chars: number
   last_gm_reply: string; image_prompt: string
   character_features: CharacterFeatures
-  nicknames?: string[]; current_nickname?: string
+  nicknames?: string[]; current_nickname?: string; battle_mode?: boolean
+  romance_mode?: boolean; win_mode?: boolean
   inventory: InventoryItem[]; side_characters: SideCharacter[]; locations: Location[]
   current_location?: string; start_datetime?: string; current_datetime?: string; end_datetime?: string; turn: number; history: HistoryMessage[]
 }

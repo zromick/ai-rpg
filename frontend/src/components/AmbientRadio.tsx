@@ -8,7 +8,76 @@ interface Station {
 name: string
 url: string
 mood: string
+isBattle?: boolean
+isRomance?: boolean
+isWin?: boolean
 }
+
+// Battle theme stations - tense, combat, action
+const BATTLE_STATIONS: Station[] = [
+  {
+    name: 'Metal',
+    url: 'https://ice1.somafm.com/metal-128-mp3',
+    mood: 'Heavy metal — battle cries and clashing steel',
+    isBattle: true,
+  },
+  {
+    name: 'Sonic Universe',
+    url: 'https://ice1.somafm.com/sonicuniverse-128-mp3',
+    mood: 'Progressive rock — epic fights and desperate stands',
+    isBattle: true,
+  },
+  {
+    name: 'Groove Salad',
+    url: 'https://ice1.somafm.com/groovesalad-128-mp3',
+    mood: 'Trippy beats — tense pursuits and shadow missions',
+    isBattle: true,
+  },
+]
+
+// Romance mode stations - romantic, intimate, emotional
+const ROMANCE_STATIONS: Station[] = [
+  {
+    name: 'Liquid Bytes',
+    url: 'https://ice1.somafm.com/liquid-128-mp3',
+    mood: 'Deep electronic — tender moments and quiet intimacy',
+    isRomance: true,
+  },
+  {
+    name: 'Lush',
+    url: 'https://ice1.somafm.com/lush-128-mp3',
+    mood: 'Ethereal ambient — moonlit confessions and stolen glances',
+    isRomance: true,
+  },
+  {
+    name: 'Dreamyard',
+    url: 'https://ice1.somafm.com/dreamyard-128-mp3',
+    mood: 'Chillout dreams — soft words and warm embraces',
+    isRomance: true,
+  },
+]
+
+// Win mode stations - triumphant, victorious, celebratory
+const WIN_STATIONS: Station[] = [
+  {
+    name: 'Bootie Legal',
+    url: 'https://ice1.somafm.com/bootie-128-mp3',
+    mood: ' Mashups — victory dances and triumphant returns',
+    isWin: true,
+  },
+  {
+    name: 'Playhouse',
+    url: 'https://ice1.somafm.com/playhouse-128-mp3',
+    mood: 'Experimental — new beginnings and epic conclusions',
+    isWin: true,
+  },
+  {
+    name: 'Deep Space One',
+    url: 'https://ice1.somafm.com/deepspaceone-128-mp3',
+    mood: 'Cosmic ambient — legends told and thrones claimed',
+    isWin: true,
+  },
+]
 
 const SCENARIO_STATIONS: Record<string, Station[]> = {
 
@@ -96,15 +165,28 @@ const DEFAULT_STATIONS: Station[] = SCENARIO_STATIONS['Beggars to Crowns']
 
 interface AmbientRadioProps {
 scenarioTitle: string
+isBattle?: boolean
+isRomance?: boolean
+isWin?: boolean
 }
 
-export default function AmbientRadio({ scenarioTitle }: AmbientRadioProps) {
+export default function AmbientRadio({ scenarioTitle, isBattle, isRomance, isWin }: AmbientRadioProps) {
 const audioRef = useRef<HTMLAudioElement>(null)
 const [playing, setPlaying] = useState(false)
 const [stationIdx, setStationIdx] = useState(0)
 const [volume, setVolume] = useState(0.25)
+const [lastMode, setLastMode] = useState('')
 
-const stations = SCENARIO_STATIONS[scenarioTitle] ?? DEFAULT_STATIONS
+const baseStations = SCENARIO_STATIONS[scenarioTitle] ?? DEFAULT_STATIONS
+
+function getStations() {
+  if (isBattle) return BATTLE_STATIONS
+  if (isRomance) return ROMANCE_STATIONS
+  if (isWin) return WIN_STATIONS
+  return baseStations
+}
+
+const stations = getStations()
 
 // Reset station index when scenario changes - and autoplay
 useEffect(() => {
@@ -115,6 +197,21 @@ useEffect(() => {
   }
   setPlaying(true)
 }, [scenarioTitle])
+
+// Switch stations when mode changes, autoplay if was playing
+useEffect(() => {
+  const currentMode = isBattle ? 'battle' : isRomance ? 'romance' : isWin ? 'win' : 'default'
+  if (currentMode !== lastMode) {
+    setLastMode(currentMode)
+    setStationIdx(0)
+    if (audioRef.current) {
+      audioRef.current.volume = volume
+      if (playing) {
+        audioRef.current.play().catch(() => {})
+      }
+    }
+  }
+}, [isBattle, isRomance, isWin])
 
 const station = stations[stationIdx]
 
@@ -130,17 +227,18 @@ const toggle = () => {
 }
 
 const switchStation = async (idx: number) => {
+  if (!audioRef.current) return
+  const wasPlaying = playing
+  audioRef.current.pause()
   setStationIdx(idx)
-  setPlaying(false)
-  if (audioRef.current) {
-    audioRef.current.pause()
-    audioRef.current.load()
-    audioRef.current.volume = volume
+  audioRef.current.load()
+  audioRef.current.volume = volume
+  if (wasPlaying) {
     try {
       await audioRef.current.play()
       setPlaying(true)
     } catch {
-      // Autoplay blocked - user will need to press play
+      setPlaying(false)
     }
   }
 }

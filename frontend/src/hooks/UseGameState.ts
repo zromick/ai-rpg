@@ -11,10 +11,13 @@ export function useGameState() {
   const lastUpdated                 = useRef('')
   const lastSessionId               = useRef('')
   const lastSetupAt                 = useRef('')
+  const lastErrorCheck              = useRef(0)
+  const pendingCommand              = useRef(false)
 
   useEffect(() => {
     let cancelled = false
     async function poll() {
+      const now = Date.now()
       try {
         // Poll setup state (shown when no game running)
         if (!gameState) {
@@ -54,23 +57,26 @@ export function useGameState() {
           setGameState(gd)
           setError(null)
           setLoading(false)
+          pendingCommand.current = false
         }
 
-        // Poll for Rust errors (ignore 404, only show real errors)
-        try {
-          const er = await fetch('/api/error')
-          if (er.ok) {
-            const ed = await er.json() as { error?: string }
-            if (!cancelled && ed.error) {
-              setError(ed.error)
-              // Clear error file after reading
-              await fetch('/api/error', { method: 'DELETE' })
+        // Check for Rust errors only when: (1) state changed, (2) after command sent, or (3) every 30 sec
+        const stateChanged = gd.updated_at !== lastUpdated.current || pendingCommand.current
+        const timeSinceCheck = now - lastErrorCheck.current
+        if (stateChanged || timeSinceCheck > 30000) {
+          lastErrorCheck.current = now
+          try {
+            const er = await fetch('/api/error')
+            if (er.ok) {
+              const ed = await er.json() as { error?: string }
+              if (!cancelled && ed.error) {
+                setError(ed.error)
+                await fetch('/api/error', { method: 'DELETE' })
+              }
             }
-          } else if (er.status === 404) {
-            // No error file - that's fine, ignore
+          } catch {
+            // Error unreachable - that's fine
           }
-        } catch {
-          // Error file doesn't exist or unreachable - that's fine
         }
       } catch {
         if (!cancelled) setError('Bridge server unreachable — run: npm run server')
@@ -82,8 +88,24 @@ export function useGameState() {
   }, [gameState])
 
   const sendCommand = useCallback(async (player: string, text: string): Promise<boolean> => {
+    pendingCommand.current = true
+    lastErrorCheck.current = Date.now()
     try {
       const r = await fetch('/api/command', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ player, text }) })
+      if (r.ok) {
+        setTimeout(async () => {
+          try {
+            const er = await fetch('/api/error')
+            if (er.ok) {
+              const ed = await er.json() as { error?: string }
+              if (ed.error) {
+                setError(ed.error)
+                await fetch('/api/error', { method: 'DELETE' })
+              }
+            }
+          } catch { /* ignore */ }
+        }, 500)
+      }
       return r.ok
     } catch { return false }
   }, [])

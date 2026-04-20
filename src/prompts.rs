@@ -199,6 +199,7 @@ pub struct StoryPrompt {
     pub scenario_rules: &'static [ScenarioRule],
     pub win_conditions: &'static str,
     pub main_quest_steps: &'static [&'static str],
+    pub start_datetime: &'static str,
 }
 
 // ─── Common rule definitions ──────────────────────────────────────────────────
@@ -470,6 +471,7 @@ before the nobility and clergy in the Grand Cathedral.",
                 "Win the backing of the clergy and the military",
                 "Be crowned King in the Grand Cathedral",
             ],
+            start_datetime: "6 August 1200, 10:24 PM",
         },
 
         // ── 2. Shipwrecked on the Obsidian Shore ────────────────────────────
@@ -540,6 +542,7 @@ accepted as chief by all three tribes and rule the island.",
                 "Build or acquire a seaworthy vessel — or unite the tribes",
                 "Escape the island or be accepted as chief of all three tribes",
             ],
+            start_datetime: "6 August 1200, 10:24 PM",
         },
 
         // ── 3. The Haunted Precinct ──────────────────────────────────────────
@@ -612,6 +615,7 @@ or contained. You survive with your sanity intact.",
                 "Confront the source of the curse and contain or destroy it",
                 "Expose the truth publicly — and survive with sanity intact",
             ],
+            start_datetime: "3 November 1923, 3:12 AM",
         },
 
         // ── 4. Void Merchant ─────────────────────────────────────────────────
@@ -684,6 +688,7 @@ independent trade contracts not controlled by any faction.",
                 "Secure a second independent contract outside faction control",
                 "Pay off the 40,000 credit debt in full",
             ],
+            start_datetime: "6 August 1200, 10:24 PM",
         },
     ]
 }
@@ -749,13 +754,13 @@ pub fn common_rule_definitions() -> Vec<CommonRuleDef> {
         },
         CommonRuleDef {
             label: "Character Coloring",
-            description: "Generate a colored portrait for the player character using the selected image engine.",
+            description: "Highlight character names in chat with color coding. Click to view character details.",
             kind: CommonRuleKind::Boolean { default: true },
             active_fragment: "", // UI-only rule (no AI prompt impact)
         },
         CommonRuleDef {
             label: "Location Coloring",
-            description: "Generate a colored image for locations and key scenes using the selected image engine.",
+            description: "Highlight location names in chat with color coding. Click to view location details.",
             kind: CommonRuleKind::Boolean { default: true },
             active_fragment: "", // UI-only rule (no AI prompt impact)
         },
@@ -812,16 +817,16 @@ pub fn common_rule_definitions() -> Vec<CommonRuleDef> {
             kind: CommonRuleKind::Level {
                 default: 3,
                 levels: &[
-                    LevelDef { level:  1, name: "Terse",         description: "~50 words. Just the facts.",                                   prompt_fragment: "Keep all responses to approximately 50 words. Be terse and direct." },
-                    LevelDef { level:  2, name: "Clipped",        description: "~80 words. Brief but atmospheric.",                            prompt_fragment: "Keep responses to approximately 80 words. Brief but with atmosphere." },
-                    LevelDef { level:  3, name: "Compact",        description: "~120 words. One clear scene.",                                 prompt_fragment: "Keep responses to approximately 120 words. One clear, vivid scene." },
-                    LevelDef { level:  4, name: "Lean",           description: "~160 words. Some texture added.",                              prompt_fragment: "Keep responses to approximately 160 words. Add some texture and character." },
-                    LevelDef { level:  5, name: "Standard Short", description: "~200 words. Solid, readable.",                                 prompt_fragment: "Keep responses to approximately 200 words. Solid and readable." },
-                    LevelDef { level:  6, name: "Standard",       description: "~250 words. Comfortable pace.",                                prompt_fragment: "Keep responses to approximately 250 words. Comfortable pace with good detail." },
-                    LevelDef { level:  7, name: "Detailed",       description: "~350 words. Rich scene-setting. (Default)",                   prompt_fragment: "Keep responses to approximately 350 words. Rich scene-setting and NPC depth." },
-                    LevelDef { level:  8, name: "Immersive",      description: "~400 words. Deep immersion.",                                  prompt_fragment: "Keep responses to approximately 400 words. Deep immersion in environment and character." },
-                    LevelDef { level:  9, name: "Novelistic",     description: "~450 words. Literary quality.",                                prompt_fragment: "Keep responses to approximately 450 words. Aim for literary quality prose." },
-                    LevelDef { level: 10, name: "Expansive",      description: "~500 words. Long-form narrative.",                             prompt_fragment: "Keep responses to approximately 500 words. Full long-form narrative each turn." },
+                    LevelDef { level:  1, name: "Terse",         description: "~50 words. Just the facts.",                                   prompt_fragment: "CRITICAL: Keep responses to STRICTLY 50 words maximum. Be terse and direct. No exceptions." },
+                    LevelDef { level:  2, name: "Clipped",        description: "~80 words. Brief but atmospheric.",                            prompt_fragment: "CRITICAL: Keep responses to STRICTLY 80 words maximum. Brief but with atmosphere. No exceptions." },
+                    LevelDef { level:  3, name: "Compact",        description: "~120 words. One clear scene.",                                 prompt_fragment: "CRITICAL: Keep responses to STRICTLY 120 words maximum. One clear, vivid scene. No exceptions." },
+                    LevelDef { level:  4, name: "Lean",           description: "~160 words. Some texture added.",                              prompt_fragment: "CRITICAL: Keep responses to STRICTLY 160 words maximum. Add some texture and character. No exceptions." },
+                    LevelDef { level:  5, name: "Standard Short", description: "~200 words. Solid, readable.",                                 prompt_fragment: "CRITICAL: Keep responses to STRICTLY 200 words maximum. Solid and readable. No exceptions." },
+                    LevelDef { level:  6, name: "Standard",       description: "~250 words. Comfortable pace.",                                prompt_fragment: "CRITICAL: Keep responses to STRICTLY 250 words maximum. Comfortable pace with good detail. No exceptions." },
+                    LevelDef { level:  7, name: "Detailed",       description: "~350 words. Rich scene-setting. (Default)",                   prompt_fragment: "CRITICAL: Keep responses to STRICTLY 350 words maximum. Rich scene-setting and NPC depth. No exceptions." },
+                    LevelDef { level:  8, name: "Immersive",      description: "~400 words. Deep immersion.",                                  prompt_fragment: "CRITICAL: Keep responses to STRICTLY 400 words maximum. Deep immersion in environment and character. No exceptions." },
+                    LevelDef { level:  9, name: "Novelistic",     description: "~450 words. Literary quality.",                                prompt_fragment: "CRITICAL: Keep responses to STRICTLY 450 words maximum. Aim for literary quality prose. No exceptions." },
+                    LevelDef { level: 10, name: "Expansive",      description: "~500 words. Long-form narrative.",                             prompt_fragment: "CRITICAL: Keep responses to STRICTLY 500 words maximum. Full long-form narrative each turn. No exceptions." },
                     LevelDef { level: 11, name: "Epic",           description: "~600 words. Full scene with subplots.",                         prompt_fragment: "Keep responses to approximately 600 words. Include subplots and background world detail." },
                     LevelDef { level: 12, name: "Chronicle",      description: "~700 words. Each turn is a chapter.",                          prompt_fragment: "Keep responses to approximately 700 words. Each turn reads as a chapter." },
                     LevelDef { level: 13, name: "Saga",           description: "~800 words. Detailed world-building each turn.",                prompt_fragment: "Keep responses to approximately 800 words. Detailed world-building every turn." },

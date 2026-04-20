@@ -106,13 +106,14 @@ const [volume, setVolume] = useState(0.25)
 
 const stations = SCENARIO_STATIONS[scenarioTitle] ?? DEFAULT_STATIONS
 
-// Reset station index when scenario changes
+// Reset station index when scenario changes - and autoplay
 useEffect(() => {
   setStationIdx(0)
-  setPlaying(false)
   if (audioRef.current) {
-    audioRef.current.pause()
+    audioRef.current.volume = volume
+    audioRef.current.play().catch(() => {})
   }
+  setPlaying(true)
 }, [scenarioTitle])
 
 const station = stations[stationIdx]
@@ -128,14 +129,19 @@ const toggle = () => {
   setPlaying(!playing)
 }
 
-const switchStation = (idx: number) => {
+const switchStation = async (idx: number) => {
   setStationIdx(idx)
+  setPlaying(false)
   if (audioRef.current) {
     audioRef.current.pause()
     audioRef.current.load()
     audioRef.current.volume = volume
-    audioRef.current.play().catch(() => {})
-    setPlaying(true)
+    try {
+      await audioRef.current.play()
+      setPlaying(true)
+    } catch {
+      // Autoplay blocked - user will need to press play
+    }
   }
 }
 
@@ -152,14 +158,14 @@ const canPrev = stations.length > 1
       <audio ref={audioRef} src={station.url} />
 
       <div className="radio-controls">
-        <button onClick={toggle} className="radio-play-btn" title={playing ? 'Pause' : 'Play'}>
-          {playing ? '❚❚' : '▶'}
-        </button>
         {canPrev && (
           <button onClick={() => switchStation((stationIdx - 1 + stations.length) % stations.length)} className="radio-nav-btn" title="Previous station">
             ◀◀
           </button>
         )}
+        <button onClick={toggle} className="radio-play-btn" title={playing ? 'Pause' : 'Play'}>
+          {playing ? '❚❚' : '▶'}
+        </button>
         {canNext && (
           <button onClick={() => switchStation((stationIdx + 1) % stations.length)} className="radio-nav-btn" title="Next station">
             ▶▶

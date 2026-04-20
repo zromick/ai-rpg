@@ -26,10 +26,17 @@ interface Props {
   inventory: InventoryItem[]
   sideCharacters: SideCharacter[]
   locations: Location[]
+  characterColoringEnabled: boolean
+  locationColoringEnabled: boolean
   sendCommand: (player: string, text: string) => Promise<boolean>
-  onOpenSettings: () => void
+onOpenSettings: () => void
   onTitle: () => void
   onRestart: () => void
+  startTime?: string
+  currentTime?: string
+  endTime?: string
+  currentNickname?: string
+  nicknames?: string[]
 }
 
 interface LocalMsg   { kind: 'local';   content: string; afterIndex: number }
@@ -45,8 +52,10 @@ type RenderItem =
 // ─────────────────────────────────────────────────────────────────────────────
 
 export function Terminal({ history, playerName, isActive, mainQuest, sideQuests,
-  promptCount, totalChars, inventory, sideCharacters, locations, sendCommand,
-  onOpenSettings, onTitle, onRestart }: Props) {
+  promptCount, totalChars, inventory, sideCharacters, locations,
+  characterColoringEnabled, locationColoringEnabled, sendCommand,
+  onOpenSettings, onTitle, onRestart, startTime, currentTime, endTime,
+  currentNickname, nicknames }: Props) {
 
   const bottomRef = useRef<HTMLDivElement>(null)
   const inputRef  = useRef<HTMLInputElement>(null)
@@ -84,7 +93,8 @@ export function Terminal({ history, playerName, isActive, mainQuest, sideQuests,
   }, [history])
 
   function pushLocal(content: string) {
-    setExtra(prev => [...prev, { kind: 'local', content, afterIndex: history.length }])
+    // Use history.length + 1 to always push to the very bottom
+    setExtra(prev => [...prev, { kind: 'local', content, afterIndex: history.length + 1 }])
   }
 
   function resolveLocal(cmd: string): boolean {
@@ -104,7 +114,7 @@ export function Terminal({ history, playerName, isActive, mainQuest, sideQuests,
     else if (c === 'sidequests' || c === 'sidequest' || c === 'sq')
       pushLocal(sideQuests.length === 0 ? '⚔ SIDE QUESTS\nNone active.' : `⚔ SIDE QUESTS\n${sideQuests.map((q,i)=>`[${i+1}] ${q.title}\n    ${q.description}`).join('\n')}`)
     else if (c === 'stats' || c === 's')
-      pushLocal(`📊 STATS — ${playerName}\nPrompts: ${promptCount}  ·  Chars: ${totalChars}`)
+      pushLocal(`📊 STATS — ${playerName}\nPrompts: ${promptCount}  ·  Chars: ${totalChars}\nStart: ${startTime || '--'}\nCurrent: ${currentTime || '--'}${endTime ? '\nEnd: '+endTime : ''}`)
     else if (c === 'inventory' || c === 'inv')
       pushLocal(inventory.length === 0 ? '🎒 INVENTORY\n(empty)' : `🎒 INVENTORY\n${inventory.map(i=>`• ${i.name} ×${i.quantity}${i.note ? '  — '+i.note : ''}`).join('\n')}`)
     else if (c === 'npcs' || c === 'n' || c === 'characters' || c === 'chars')
@@ -192,6 +202,7 @@ export function Terminal({ history, playerName, isActive, mainQuest, sideQuests,
     <div className={`terminal ${isActive ? 'terminal--active' : ''}`}>
       <div className="terminal-header">
         <span className="terminal-player">{playerName}</span>
+        {currentNickname && currentNickname !== playerName && <span className="terminal-nickname"> · {currentNickname}</span>}
         {isActive && <span className="terminal-active-badge">● ACTIVE TURN</span>}
         {sending && <span className="terminal-sending">⟳ waiting…</span>}
       </div>
@@ -207,7 +218,7 @@ export function Terminal({ history, playerName, isActive, mainQuest, sideQuests,
               <div key={item.key} className={`terminal-msg terminal-msg--${item.msg.role}`}>
                 {item.msg.role === 'user'
                   ? <span className="terminal-prompt"><span className="prompt-symbol">{'>'}</span>{' '}<span className="prompt-text">{item.msg.content}</span></span>
-                  : <TypewriterText text={item.msg.content} isNew={i === renderItems.length - 1 && item.msg.role === 'assistant'} characters={sideCharacters} locations={locations} />
+                  : <TypewriterText text={item.msg.content} isNew={i === renderItems.length - 1 && item.msg.role === 'assistant'} characters={characterColoringEnabled ? sideCharacters : []} locations={locationColoringEnabled ? locations : []} />
                 }
               </div>
             )
@@ -308,7 +319,15 @@ function highlightNames(text: string, characters: SideCharacter[], locations: Lo
       ? { backgroundColor: `${highlight.color}20`, borderColor: highlight.color }
       : {}
     parts.push(
-      <span key={match.index} className="highlighted-name" style={style}>
+      <span key={match.index} className="highlighted-name" style={style} onClick={() => {
+        const panel = document.querySelector('.char-panel')
+        const charTab = panel?.querySelector('.char-tab:nth-child(3)') as HTMLButtonElement
+        const locTab = panel?.querySelector('.char-tab:nth-child(4)') as HTMLButtonElement
+        const isChar = characters.some(c => c.name.toLowerCase() === matchedName.toLowerCase())
+        if (isChar && charTab) { charTab.click(); }
+        else if (locTab) { locTab.click(); }
+        panel?.scrollIntoView({ behavior: 'smooth' })
+      }}>
         {matchedName}
       </span>
     )
@@ -322,11 +341,15 @@ function highlightNames(text: string, characters: SideCharacter[], locations: Lo
   return parts.length > 0 ? parts : text
 }
 
-// Typewriter — 4ms per char (fast), full text on non-latest messages
+// Typewriter — full highlight as text appears, then highlights appear after typewriter is done
 function TypewriterText({ text, isNew, characters, locations }: { text: string; isNew: boolean; characters: SideCharacter[]; locations: Location[] }) {
   const ref = useRef<HTMLParagraphElement>(null)
+  const highlightRef = useRef<HTMLParagraphElement>(null)
+  const [typewriterDone, setTypewriterDone] = useState(false)
+
   useEffect(() => {
     if (!isNew || !ref.current) return
+    setTypewriterDone(false)
     const el = ref.current
     el.textContent = ''
     let i = 0
@@ -337,11 +360,16 @@ function TypewriterText({ text, isNew, characters, locations }: { text: string; 
       for (let b = 0; b < batch && i < chars.length; b++) {
         el.textContent += chars[i++]
       }
-      if (i < chars.length) frame = requestAnimationFrame(tick)
+      if (i < chars.length) {
+        frame = requestAnimationFrame(tick)
+      } else {
+        setTypewriterDone(true)
+      }
     }
     frame = requestAnimationFrame(tick)
     return () => cancelAnimationFrame(frame)
   }, [text, isNew])
-  if (!isNew) return <p className="gm-text">{highlightNames(text, characters, locations)}</p>
-  return <p className="gm-text" ref={ref} />
+
+  if (isNew && !typewriterDone) return <p className="gm-text" ref={ref} />
+  return <p className="gm-text" ref={highlightRef}>{highlightNames(text, characters, locations)}</p>
 }

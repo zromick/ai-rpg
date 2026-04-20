@@ -1,15 +1,8 @@
 // src/imageServices.ts
-//
-// Switched from Pollinations (broken URL-based) to Hugging Face Inference API.
-// HF returns a binary image blob — callers must use fetchImage(), not buildUrl().
-// Set HF_TOKEN in your .env (VITE_HF_TOKEN for Vite projects).
 
 import type { ImageService } from './types'
 
-const HF_API = 'https://api-inference.huggingface.co/models'
-
-// Grab token from env — Vite exposes VITE_* vars; adjust prefix for your bundler.
-const TOKEN = import.meta.env.VITE_HF_TOKEN ?? ''
+const BRIDGE_API = '/api'
 
 const STYLE =
   'medieval fantasy, dramatic lighting, painterly, cinematic composition, detailed, no text, no watermark, no UI'
@@ -21,22 +14,15 @@ async function hfImage(
   width = 768,
   height = 512,
 ): Promise<string> {
-  const response = await fetch(`${HF_API}/${model}`, {
+  const response = await fetch(`${BRIDGE_API}/image`, {
     method: 'POST',
-    headers: {
-      Authorization: `Bearer ${TOKEN}`,
-      'Content-Type': 'application/json',
-      'X-Use-Cache': 'false',
-    },
-    body: JSON.stringify({
-      inputs: prompt,
-      parameters: { seed, width, height, num_inference_steps: 4 },
-    }),
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ model, prompt, seed, width, height, num_inference_steps: 4 }),
   })
 
   if (!response.ok) {
-    const err = await response.text()
-    throw new Error(`HF API error ${response.status}: ${err}`)
+    const err = await response.text().catch(() => 'Unknown error')
+    throw new Error(`HF API error: ${err}`)
   }
 
   const blob = await response.blob()

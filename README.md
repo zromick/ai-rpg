@@ -1,4 +1,4 @@
-# ♛ AI RPG 
+# ♛ AI RPG
 
 Written with the help of Claude Sonnet 4.6.
 
@@ -34,7 +34,7 @@ An optional React frontend provides a live dashboard with AI-generated scene ima
 Create `.env` in the project root:
 
 ```
-HF_API_KEY=hf_yourtoken
+HF_API_TOKEN=hf_yourtoken
 ```
 
 ### 3. Build and run the Rust game
@@ -221,7 +221,7 @@ objectives even though their story paths diverge.
 beggars_to_crowns/
 │
 ├── Cargo.toml                  ← Rust dependencies (edition 2024)
-├── .env                        ← HF_API_KEY=hf_yourtoken  (you create this)
+├── .env                        ← HF_API_TOKEN=hf_yourtoken  (you create this)
 ├── game_state.json             ← Live data file written by Rust, read by frontend
 │
 ├── src/

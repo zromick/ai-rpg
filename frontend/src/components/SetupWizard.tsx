@@ -67,11 +67,25 @@ export function SetupWizard({ data, onSubmit }: Props) {
   }
 
   useEffect(() => {
-    function handleKeyDown(e: Event) {
+    function handleKeyDown(e: KeyboardEvent) {
       const t = e.target as HTMLElement
-      if (e instanceof KeyboardEvent && e.key === 'Enter' && t.tagName !== 'INPUT' && t.tagName !== 'TEXTAREA' && t.tagName !== 'SELECT') {
-        if (step === 'confirm') handleSubmit()
-        else if (step !== 'home') goNext()
+      const isInput = t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT'
+      if (!isInput) {
+        if (e.key === 'Enter') {
+          e.preventDefault()
+          if (step === 'confirm') handleSubmit()
+          else if (step === 'home') goNext()
+          else goNext()
+        }
+        if (e.key === 'ArrowLeft') {
+          e.preventDefault()
+          goBack()
+        }
+        if (e.key === 'ArrowRight') {
+          e.preventDefault()
+          if (step === 'confirm') handleSubmit()
+          else goNext()
+        }
       }
     }
     window.addEventListener('keydown', handleKeyDown)
@@ -290,7 +304,7 @@ function handleSubmit() {
                 <span className="setup-player-num">Player {i+1}</span>
                 <input className="setup-player-input" type="text"
                   value={players[i] ?? ''}
-                  placeholder={i === 0 && !players[i] ? getRandomName() : `Enter name…`}
+                  placeholder={!players[i] ? getRandomName() : `Enter name…`}
                   onChange={e => { const n = [...players]; n[i] = e.target.value; setPlayers(n); }}
                 />
               </div>
@@ -305,7 +319,7 @@ function handleSubmit() {
             <div className="setup-summary">
               <div className="setup-sum-row"><span className="setup-sum-key">Model</span><span>{data.models.find(m => m.id === model)?.label ?? model}</span></div>
               <div className="setup-sum-row"><span className="setup-sum-key">Scenario</span><span>{data.scenarios[scenarioIdx]?.title}</span></div>
-              <div className="setup-sum-row"><span className="setup-sum-key">Players</span><span>{players.slice(0, playerCount).filter(Boolean).join(', ')}</span></div>
+              <div className="setup-sum-row"><span className="setup-sum-key">Players</span><span>{players.slice(0, playerCount).map((n, i) => n.trim() || (i === 0 ? getRandomName() : 'Unnamed Hero')).join(', ')}</span></div>
               <div className="setup-sum-row"><span className="setup-sum-key">Difficulty</span>
                 <span>{(() => { const dr = commonRules[data.common_rules.findIndex(r => r.label.includes('Difficulty'))]; return dr ? (dr.active ? `${dr.current_level} — ${data.common_rules.find(r => r.label.includes('Difficulty'))?.level_names[dr.current_level-1] ?? '?'}` : 'OFF') : '—'; })()}</span>
               </div>
@@ -320,10 +334,10 @@ function handleSubmit() {
 
       {/* ── Nav ── */}
       <div className="setup-nav">
-        {step !== 'home' && <button className="setup-btn setup-btn--back" onClick={goBack}>← Back</button>}
+        {step !== 'home' && <button className="setup-btn setup-btn--back" onClick={goBack}>← Back (←)</button>}
         {step !== 'confirm'
-          ? <button className="setup-btn setup-btn--next" onClick={goNext}>Next →</button>
-          : <button className="setup-btn setup-btn--start" onClick={handleSubmit}>♛ Begin Adventure</button>
+          ? <button className="setup-btn setup-btn--next" onClick={goNext}>Next → (Enter)</button>
+          : <button className="setup-btn setup-btn--start" onClick={handleSubmit}>♛ Begin Adventure (Enter)</button>
         }
       </div>
     </div>

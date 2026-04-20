@@ -4,21 +4,22 @@ export interface CharacterFeatures {
   age: string; gender: string; build: string; height: string
   hair_color: string; hair_style: string; eye_color: string
   skin_tone: string; scars: string; clothing: string
-  expression: string; distinguishing: string
+  expression: string; distinguishing: string; current_location: string
   [key: string]: string
 }
 
 export interface HistoryMessage { role: 'user' | 'assistant'; content: string }
 export interface InventoryItem  { name: string; quantity: string; note: string }
-export interface SideCharacter  { name: string; description: string; relation: string; outline_color?: string }
-export interface Location       { name: string; description: string; last_visited: number; outline_color?: string }
+export interface SideCharacter  { name: string; description: string; relation: string; outline_color?: string; character_features?: Record<string, string>; inventory?: InventoryItem[] }
+export interface Location       { name: string; description: string; last_visited: number; outline_color?: string; location_features?: Record<string, string> }
 
 export interface PlayerState {
   name: string; prompt_count: number; total_chars: number
   last_gm_reply: string; image_prompt: string
   character_features: CharacterFeatures
+  nicknames?: string[]; current_nickname?: string
   inventory: InventoryItem[]; side_characters: SideCharacter[]; locations: Location[]
-  turn: number; history: HistoryMessage[]
+  current_location?: string; start_datetime?: string; current_datetime?: string; end_datetime?: string; turn: number; history: HistoryMessage[]
 }
 
 export interface SideQuest { title: string; description: string; steps?: string[] }
@@ -33,9 +34,13 @@ export interface GameSettings {
   scenario_rules: ScenarioRuleSetting[]; common_rules: CommonRuleSetting[]
 }
 
+export interface QuestStepStatus {
+  step: string; completed: boolean; completed_at?: string
+}
+
 export interface GameState {
   session_id: string; scenario: string; model: string
-  main_quest: string; main_quest_steps?: string[]; side_quests: SideQuest[]
+  main_quest: string; main_quest_steps?: string[]; main_quest_step_status?: QuestStepStatus[]; side_quests: SideQuest[]
   active_player: string; players: PlayerState[]
   settings: GameSettings; updated_at: string
 }

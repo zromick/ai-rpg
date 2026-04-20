@@ -12,6 +12,17 @@ export default function Narrator({ enabled }: NarratorProps) {
   const [playing, setPlaying] = useState(false)
   const [audioSrc, setAudioSrc] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+  const [volume, setVolume] = useState(0.5)
+
+  const services = NARRATION_SERVICES
+  const currentIdx = services.findIndex(s => s.id === currentServiceId)
+  const canPrev = services.length > 1
+  const canNext = services.length > 1
+
+  const switchService = (idx: number) => {
+    stop()
+    setCurrentServiceId(services[idx].id)
+  }
 
   const service = getNarrationService(currentServiceId)
 
@@ -47,6 +58,11 @@ export default function Narrator({ enabled }: NarratorProps) {
     }
   }
 
+  const onVolume = (v: number) => {
+    setVolume(v)
+    if (audioRef.current) audioRef.current.volume = v
+  }
+
   if (!enabled) return null
 
   return (
@@ -56,6 +72,11 @@ export default function Narrator({ enabled }: NarratorProps) {
       )}
 
       <div className="narrator-controls">
+        {canPrev && (
+          <button onClick={() => switchService((currentIdx - 1 + services.length) % services.length)} className="narrator-nav-btn" title="Previous voice">
+            ◀◀
+          </button>
+        )}
         {!playing ? (
           <button onClick={narrate} className="narrator-play-btn" title="Test narration" disabled={loading}>
             {loading ? '…' : '▶'}
@@ -65,6 +86,11 @@ export default function Narrator({ enabled }: NarratorProps) {
             ■
           </button>
         )}
+        {canNext && (
+          <button onClick={() => switchService((currentIdx + 1) % services.length)} className="narrator-nav-btn" title="Next voice">
+            ▶▶
+          </button>
+        )}
       </div>
 
       <div className="narrator-station-info">
@@ -72,11 +98,22 @@ export default function Narrator({ enabled }: NarratorProps) {
         <span className="narrator-mood">{service.voice}</span>
       </div>
 
+      <input
+        type="range"
+        min={0}
+        max={1}
+        step={0.01}
+        value={volume}
+        onChange={(e) => onVolume(parseFloat(e.target.value))}
+        className="narrator-volume"
+        title={`Volume: ${Math.round(volume * 100)}%`}
+      />
+
       <div className="narrator-service-list">
-        {NARRATION_SERVICES.map((s) => (
+        {services.map((s) => (
           <button
             key={s.id}
-            onClick={() => { setCurrentServiceId(s.id); stop() }}
+            onClick={() => switchService(services.findIndex(svc => svc.id === s.id))}
             className={`narrator-station-btn ${s.id === currentServiceId ? 'active' : ''}`}
           >
             {s.name}

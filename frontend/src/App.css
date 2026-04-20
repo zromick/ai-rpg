@@ -53,6 +53,7 @@ html, body, #root {
   font-size: 15px;
   line-height: 1.6;
   overflow: hidden;
+  overflow: clip;
 }
 
 /* ── Scanline overlay (entire app) ─────────────────────────────────────────── */
@@ -164,8 +165,15 @@ html, body, #root {
   scrollbar-width: thin;
   scrollbar-color: var(--border-bright) transparent;
   flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
 }
 .col-right { border-right: none; border-left: 1px solid var(--border); }
+.col-right-content {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
 
 .col-center { display: flex; flex-direction: column; min-height: 0; overflow: hidden; flex: 1; }
 
@@ -243,6 +251,7 @@ html, body, #root {
   flex-shrink: 0;
 }
 .terminal-player      { font-family: var(--font-display); font-size: 12px; letter-spacing: 0.1em; color: var(--text-bright); }
+.terminal-nickname  { font-family: var(--font-display); font-size: 11px; letter-spacing: 0.08em; color: var(--gold); font-style: italic; }
 .terminal-active-badge { font-family: var(--font-mono); font-size: 10px; color: var(--green-bright); letter-spacing: 0.08em; }
 
 .terminal-body {
@@ -341,6 +350,31 @@ html, body, #root {
   font-size: 9px;
   color: var(--gold);
   animation: pulse 1.4s ease-in-out infinite;
+}
+
+.char-image-clear {
+  position: absolute;
+  top: 8px; right: 8px;
+  width: 24px; height: 24px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(0,0,0,0.7);
+  color: var(--text-dim);
+  font-size: 14px;
+  cursor: pointer;
+  z-index: 10;
+}
+.char-image-clear:hover { background: var(--red-bright); color: var(--text); }
+
+.char-image-label {
+  position: absolute;
+  bottom: 8px; left: 8px; right: 40px;
+  padding: 4px 8px;
+  background: rgba(0,0,0,0.75);
+  font-size: 12px;
+  color: var(--gold);
+  text-align: center;
+  z-index: 10;
 }
 
 /* Feature table */
@@ -636,14 +670,9 @@ html, body, #root {
 .world-item-name[data-status="neutral"] { border-bottom: 2px solid var(--text-dim); }
 .world-item-name[data-status="unknown"] { border-bottom: 2px solid var(--border-bright); }
 
-/* Character outline color pill */
+/* Character outline color pill (unused now) */
 .world-item-outline {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  display: inline-block;
-  border: 1px solid rgba(255,255,255,0.3);
-  flex-shrink: 0;
+  display: none;
 }
 
 /* In-game name highlighting */
@@ -660,6 +689,10 @@ html, body, #root {
   text-decoration: line-through;
   opacity: 0.5;
   color: var(--text-dim);
+}
+.quest-step--completed::after {
+  content: " ✅";
+  font-size: 0.85em;
 }
 .world-item-qty  { font-family: var(--font-mono); font-size: 10px; color: var(--gold-dim); }
 .world-item-turn { font-family: var(--font-mono); font-size: 9px; color: var(--text-dim); }
@@ -921,6 +954,18 @@ html, body, #root {
 }
 
 .narrator-panel .narrator-controls { display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
+
+.narrator-panel .narrator-nav-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-dim);
+  cursor: pointer;
+  font-size: 8px;
+  padding: 2px 4px;
+}
+.narrator-panel .narrator-nav-btn:hover { color: var(--text); }
+
+.narrator-panel .narrator-volume { width: 50px; accent-color: var(--gold); flex-shrink: 0; }
 
 .narrator-panel .narrator-play-btn {
   background: transparent;

@@ -1,7 +1,7 @@
 // src/components/CharacterPanel.tsx
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useCharacterImage } from '../hooks/useCharacterImage'
-import type { PlayerState, ImageService } from '../types'
+import type { PlayerState, ImageService, InventoryItem, SideCharacter, Location } from '../types'
 
 interface Props {
   player: PlayerState
@@ -12,16 +12,49 @@ interface Props {
 const CORE_FIELDS = [
   'age','gender','build','height','hair_color','hair_style',
   'eye_color','skin_tone','scars','clothing','expression','distinguishing',
+  'current_location',
 ]
+
+type FocusedEntity = { type: 'inventory'; item: InventoryItem } | { type: 'character'; char: SideCharacter } | { type: 'location'; loc: Location } | null
+
+function buildEntityPrompt(entity: FocusedEntity): string {
+  if (!entity) return ''
+  if (entity.type === 'inventory') {
+    const item = entity.item
+    return `${item.name}, ${item.note || 'antique item'}, medieval fantasy item, detailed, antique, worn, dramatic lighting`
+  }
+  if (entity.type === 'character') {
+    const c = entity.char
+    return `${c.name}, ${c.description}, ${c.relation === 'player' ? 'player character' : c.relation}, medieval fantasy, dramatic portrait`
+  }
+  if (entity.type === 'location') {
+    const l = entity.loc
+    return `${l.name}, ${l.description}, medieval fantasy location, atmospheric, dramatic lighting`
+  }
+  return ''
+}
 
 export function CharacterPanel({ player, seed, service }: Props) {
   const { url } = useCharacterImage(player.image_prompt, player.last_gm_reply, seed, service)
   const [imgState, setImgState] = useState<'loading' | 'loaded' | 'error'>('loading')
   const [activeTab, setActiveTab] = useState<'features' | 'inventory' | 'characters' | 'locations'>('features')
+  const [focusedEntity, setFocusedEntity] = useState<FocusedEntity>(null)
 
-  // Reset loading state when URL changes
+  const focusedPrompt = useMemo(() => buildEntityPrompt(focusedEntity), [focusedEntity])
+  const { url: focusedUrl } = useCharacterImage(focusedPrompt, '', seed + 1, service)
+
   useEffect(() => { if (url) setImgState('loading') }, [url])
+  useEffect(() => { if (focusedUrl) setImgState('loading') }, [focusedUrl])
 
+  const displayUrl = focusedEntity ? focusedUrl : url
+  const displayLabel = focusedEntity
+    ? focusedEntity.type === 'inventory' ? focusedEntity.item.name
+      : focusedEntity.type === 'character' ? focusedEntity.char.name
+      : focusedEntity.type === 'location' ? focusedEntity.loc.name
+      : ''
+    : ''
+
+  const clearFocus = () => setFocusedEntity(null)
   const custom = Object.entries(player.character_features).filter(([k]) => !CORE_FIELDS.includes(k))
 
   const hasPlayed = player && player.prompt_count > 0
@@ -30,10 +63,10 @@ export function CharacterPanel({ player, seed, service }: Props) {
     <div className="char-panel">
       {/* ── Image ── */}
       <div className="char-image-wrap">
-        {(!url || imgState === 'loading') && (
+        {(!displayUrl || imgState === 'loading') && (
           <div className="char-image-placeholder">
             <span className="sigil">⚗</span>
-            {url ? (
+            {displayUrl ? (
               <p>Generating scene…</p>
             ) : hasPlayed ? (
               <p>Generating image…</p>
@@ -48,20 +81,23 @@ export function CharacterPanel({ player, seed, service }: Props) {
             <p>Image failed — try a different engine</p>
           </div>
         )}
-        {url && (
+        {displayUrl && (
           <img
-            key={url}
-            src={url}
-            alt={`${player.name} in action`}
+            key={displayUrl}
+            src={displayUrl}
+            alt={displayLabel || `${player.name} in action`}
             className="char-image"
             style={{ display: imgState === 'loaded' ? 'block' : 'none' }}
             onLoad={() => setImgState('loaded')}
             onError={() => setImgState('error')}
           />
         )}
-        <div className="char-image-caption" style={{ display: 'none' }}>
-          {imgState === 'loading' && url && <span className="badge loading">generating…</span>}
-        </div>
+        {focusedEntity && (
+          <button className="char-image-clear" onClick={clearFocus} title="Clear focused item">
+            ✕
+          </button>
+        )}
+        {displayLabel && <span className="char-image-label">{displayLabel}</span>}
       </div>
 
       {/* ── Tab bar ── */}
@@ -108,7 +144,7 @@ export function CharacterPanel({ player, seed, service }: Props) {
             {player.inventory.length === 0
               ? <p className="world-empty">No items yet</p>
               : player.inventory.map((item, i) => (
-                  <div key={i} className="world-item">
+                  <div key={i} className="world-item" onClick={() => setFocusedEntity({ type: 'inventory', item })}>
                     <span className="world-item-name">{item.name}</span>
                     <span className="world-item-qty">×{item.quantity}</span>
                     {item.note && <span className="world-item-note">{item.note}</span>}
@@ -123,10 +159,9 @@ export function CharacterPanel({ player, seed, service }: Props) {
             {player.side_characters.length === 0
               ? <p className="world-empty">No characters met yet</p>
               : player.side_characters.map((c, i) => (
-                  <div key={i} className="world-item world-item--char">
+                  <div key={i} className="world-item world-item--char" onClick={() => setFocusedEntity({ type: 'character', char: c })}>
                     <div className="world-item-header">
-                      <span className="world-item-name" data-status={c.relation} style={{ borderColor: c.outline_color }}>{c.name}</span>
-                      {c.outline_color && <span className="world-item-outline" style={{ backgroundColor: c.outline_color }} title="Character color" />}
+                      <span className="world-item-name" data-status={c.relation}>{c.name}</span>
                       <span className={`world-item-relation relation--${c.relation}`}>{c.relation}</span>
                     </div>
                     <span className="world-item-note">{c.description}</span>
@@ -141,10 +176,9 @@ export function CharacterPanel({ player, seed, service }: Props) {
             {player.locations.length === 0
               ? <p className="world-empty">No locations visited yet</p>
               : player.locations.map((l, i) => (
-                  <div key={i} className="world-item world-item--loc">
+                  <div key={i} className="world-item world-item--loc" onClick={() => setFocusedEntity({ type: 'location', loc: l })}>
                     <div className="world-item-header">
-                      <span className="world-item-name" style={{ borderColor: l.outline_color }}>{l.name}</span>
-                      {l.outline_color && <span className="world-item-outline" style={{ backgroundColor: l.outline_color }} title="Location color" />}
+                      <span className="world-item-name">{l.name}</span>
                       <span className="world-item-turn">turn {l.last_visited}</span>
                     </div>
                     <span className="world-item-note">{l.description}</span>

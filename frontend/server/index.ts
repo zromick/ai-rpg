@@ -17,6 +17,88 @@ const ERROR_PATH = path.resolve(__dirname, '../last_error.json')
 app.use(cors())
 app.use(express.json())
 
+const HF_API = 'https://api-inference.huggingface.co/models'
+const TOKEN = process.env.VITE_HF_API_KEY ?? process.env.HF_API_KEY ?? ''
+
+app.post('/api/tts', async (req: Request, res: Response) => {
+  const { model, text } = req.body as { model?: string; text?: string }
+  if (!model || !text) { res.status(400).json({ error: 'Missing model or text' }); return }
+  if (!TOKEN) { res.status(500).json({ error: 'HF API key not configured' }); return }
+
+  try {
+    const response = await fetch(`${HF_API}/${model}`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${TOKEN}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ inputs: text }),
+    })
+
+    if (!response.ok) {
+      const err = await response.text()
+      if (response.status === 503) {
+        res.status(503).json({ error: 'Model is loading. Try again in a few seconds.' })
+        return
+      }
+      if (response.status === 401) {
+        res.status(401).json({ error: 'Invalid HF API key.' })
+        return
+      }
+      res.status(response.status).json({ error: `HF API error: ${err}` })
+      return
+    }
+
+    const buffer = await response.arrayBuffer()
+    res.set('Content-Type', 'audio/mpeg')
+    res.send(Buffer.from(buffer))
+  } catch (e) {
+    res.status(500).json({ error: String(e) })
+  }
+})
+
+const IMAGE_STYLE = 'medieval fantasy, dramatic lighting, painterly, cinematic composition, detailed, no text, no watermark, no UI'
+
+app.post('/api/image', async (req: Request, res: Response) => {
+  const { model, prompt, seed, width, height, num_inference_steps } = req.body as {
+    model?: string
+    prompt?: string
+    seed?: number
+    width?: number
+    height?: number
+    num_inference_steps?: number
+  }
+  if (!model || !prompt) { res.status(400).json({ error: 'Missing model or prompt' }); return }
+  if (!TOKEN) { res.status(500).json({ error: 'HF API key not configured' }); return }
+
+  try {
+    const response = await fetch(`${HF_API}/${model}`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${TOKEN}`,
+        'Content-Type': 'application/json',
+        'X-Use-Cache': 'false',
+      },
+      body: JSON.stringify({
+        inputs: prompt,
+        parameters: { seed: seed ?? 0, width: width ?? 768, height: height ?? 512, num_inference_steps: num_inference_steps ?? 4 },
+      }),
+    })
+
+    if (!response.ok) {
+      const err = await response.text()
+      res.status(response.status).json({ error: `HF API error: ${response.status}: ${err}` })
+      return
+    }
+
+    const buffer = await response.arrayBuffer()
+    res.set('Content-Type', 'image/png')
+    res.send(Buffer.from(buffer))
+  } catch (e) {
+    res.status(500).json({ error: String(e) })
+  }
+})
+
 app.get('/api/state', (_req: Request, res: Response) => {
 try {
   if (!fs.existsSync(STATE_PATH)) { res.status(404).json({ error: 'No active game.' }); return }

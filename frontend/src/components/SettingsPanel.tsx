@@ -17,7 +17,7 @@ const UI_ONLY_RULES = ['Character Coloring', 'Location Coloring', 'Ambient Radio
 export function SettingsPanel({ settings, models, imageService, onImageServiceChange, onClose, onApply }: Props) {
   const [model, setModel]           = useState(settings.model)
   const [rules, setRules]           = useState<CommonRuleSetting[]>(settings.common_rules.map(r => ({ ...r })))
-  const [scenarioRules] = useState<boolean[]>(settings.scenario_rules.map(r => r.enabled))
+  const [scenarioRules, setScenarioRules] = useState<boolean[]>(settings.scenario_rules.map(r => r.enabled))
 
   const aiPromptRules = rules.filter(r => !UI_ONLY_RULES.includes(r.label))
   const uiRules = rules.filter(r => UI_ONLY_RULES.includes(r.label))
@@ -164,14 +164,15 @@ export function SettingsPanel({ settings, models, imageService, onImageServiceCh
               scenarioRules.map((enabled, i) => (
                 <div key={i} className="settings-rule">
                   <label className="settings-rule-label">
-                    <input type="checkbox" className="setup-checkbox" checked={enabled} readOnly />
+                    <input type="checkbox" className="setup-checkbox" checked={enabled}
+                      onChange={e => { const n = [...scenarioRules]; n[i] = e.target.checked; setScenarioRules(n); }}
+                    />
                     <span className="settings-rule-name">{settings.scenario_rules[i].label}</span>
                   </label>
                   <p className="settings-rule-desc">{settings.scenario_rules[i].description}</p>
                 </div>
               ))
             )}
-            <p className="settings-hint">Scenario rules cannot be changed mid-game.</p>
           </div>
         </div>
 

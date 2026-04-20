@@ -52,7 +52,7 @@ pub struct CharacterFeatures {
     pub age: String, pub gender: String, pub build: String, pub height: String,
     pub hair_color: String, pub hair_style: String, pub eye_color: String,
     pub skin_tone: String, pub scars: String, pub clothing: String,
-    pub expression: String, pub distinguishing: String,
+    pub expression: String, pub distinguishing: String, pub current_location: String,
     #[serde(flatten)] pub custom: HashMap<String, String>,
 }
 
@@ -75,6 +75,7 @@ impl CharacterFeatures {
             clothing: rng_pick(&["filthy rags","worn peasant tunic","patched leather vest","a threadbare cloak","torn burlap wrap"], s.wrapping_mul(31)),
             expression: rng_pick(&["hollow-eyed and haunted","watchful and guarded","quietly defiant","tired but sharp","blank and unreadable"], s.wrapping_mul(37)),
             distinguishing: rng_pick(&["none","a missing finger","a slight limp","calloused hands","an unusual tattoo on the neck","striking bone structure"], s.wrapping_mul(41)),
+            current_location: String::new(),
             custom: HashMap::new(),
         }
     }
@@ -91,6 +92,7 @@ impl CharacterFeatures {
         if self.scars != "none" { p.push(format!("with {}", self.scars)); }
         if self.distinguishing != "none" { p.push(self.distinguishing.clone()); }
         for (k,v) in &self.custom { p.push(format!("{}: {}", k, v)); }
+        if !self.current_location.is_empty() { p.push(format!("at {}", self.current_location)); }
         p.join(", ")
     }
 }
@@ -101,16 +103,25 @@ impl CharacterFeatures {
 pub struct InventoryItem { pub name: String, pub quantity: String, pub note: String }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
-pub struct SideCharacter { pub name: String, pub description: String, pub relation: String, pub outline_color: Option<String> }
+pub struct SideCharacter { pub name: String, pub description: String, pub relation: String, pub outline_color: Option<String>, pub character_features: Option<HashMap<String, String>>, pub inventory: Option<Vec<InventoryItem>> }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
-pub struct Location { pub name: String, pub description: String, pub last_visited: u64, pub outline_color: Option<String> }
+pub struct Location { pub name: String, pub description: String, pub last_visited: u64, pub outline_color: Option<String>, pub location_features: Option<HashMap<String, String>> }
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct LocationFeatures { pub interior: String, pub exterior: String, pub mood: String }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct WorldState {
     pub inventory: Vec<InventoryItem>,
     pub side_characters: Vec<SideCharacter>,
     pub locations: Vec<Location>,
+    pub current_location: Option<String>,
+    pub start_datetime: Option<String>,
+    pub current_datetime: Option<String>,
+    pub end_datetime: Option<String>,
+    pub nicknames: Vec<String>,
+    pub current_nickname: Option<String>,
     pub turn: u64,
 }
 
@@ -144,10 +155,18 @@ pub struct CommonRuleSetting {
 
 // ─── Game state ───────────────────────────────────────────────────────────────
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct QuestStepStatus {
+    step: String,
+    completed: bool,
+    completed_at: Option<String>,
+}
+
 struct GameState {
     model: String,
     main_quest: String,
     main_quest_steps: Vec<String>,
+    main_quest_step_status: Vec<QuestStepStatus>,
     side_quests: Vec<SideQuest>,
     scenario_title: String,
     session_id: String,
@@ -179,20 +198,29 @@ struct PlayerSession {
 }
 
 impl PlayerSession {
-    fn new(name: &str, system_prompt: &str, seed: u64) -> Self {
+    fn new(name: &str, system_prompt: &str, seed: u64, start_datetime: &str) -> Self {
+        let mut world = WorldState::default();
+        world.start_datetime = Some(start_datetime.to_string());
+        world.current_datetime = Some(start_datetime.to_string());
+        world.nicknames.push(name.to_string());
+        world.current_nickname = Some(name.to_string());
         Self {
             stats: PlayerStats { name: name.to_string(), prompt_count: 0, total_chars: 0, prompt_log: vec![] },
             history: vec![Message { role: "system".to_string(), content: system_prompt.to_string() }],
             system_prompt: system_prompt.to_string(),
             character: CharacterFeatures::random(seed),
             last_gm_reply: String::new(),
-            world: WorldState::default(),
+            world,
         }
     }
     fn restart(&mut self) {
         self.history = vec![Message { role: "system".to_string(), content: self.system_prompt.clone() }];
         self.stats.prompt_count = 0; self.stats.total_chars = 0; self.stats.prompt_log.clear();
-        self.last_gm_reply = String::new(); self.world = WorldState::default();
+        self.last_gm_reply = String::new();
+        let start = self.world.start_datetime.clone().unwrap_or_default();
+        self.world = WorldState::default();
+        self.world.start_datetime = Some(start.clone());
+        self.world.current_datetime = Some(start);
     }
 }
 
@@ -206,11 +234,34 @@ fn write_setup_state(phase: &str, data: Value) {
 // ─── Game state file ──────────────────────────────────────────────────────────
 
 fn write_state(gs: &GameState, sessions: &HashMap<String, PlayerSession>, active: &str) {
+    // Generate a consistent color for each player using hash
+    fn player_color(name: &str) -> String {
+        let mut h: u64 = 0;
+        for (i, c) in name.bytes().enumerate() {
+            h = h.wrapping_add((c as u64).wrapping_mul(31u64.wrapping_pow(i as u32)));
+        }
+        let colors = ["#4a90d9", "#d97a4a", "#6bd94a", "#d94ab8", "#4ad9d1", "#d9c84a", "#8a4ad9", "#4ad96b"];
+        let idx = (h as usize) % colors.len();
+        colors[idx].to_string()
+    }
+
     let players: Vec<Value> = sessions.values().map(|s| {
         let mut cf = serde_json::to_value(&s.character).unwrap_or(Value::Null);
         if let Value::Object(ref mut m) = cf {
             if let Some(Value::Object(c)) = m.remove("custom") { for (k,v) in c { m.insert(k,v); } }
+            m.insert("current_location".to_string(), serde_json::to_value(&s.world.current_location).unwrap_or(Value::Null));
         }
+        // Include main player as first character in the list
+        let mut chars = s.world.side_characters.clone();
+        let player_char = SideCharacter {
+            name: s.stats.name.clone(),
+            description: format!("Player character: {}", s.character.to_image_prompt()),
+            relation: "player".to_string(),
+            outline_color: Some(player_color(&s.stats.name)),
+            character_features: None,
+            inventory: None,
+        };
+        chars.insert(0, player_char);
         json!({
             "name": s.stats.name,
             "prompt_count": s.stats.prompt_count,
@@ -219,8 +270,14 @@ fn write_state(gs: &GameState, sessions: &HashMap<String, PlayerSession>, active
             "image_prompt": s.character.to_image_prompt(),
             "character_features": cf,
             "inventory": s.world.inventory,
-            "side_characters": s.world.side_characters,
+            "side_characters": chars,
             "locations": s.world.locations,
+            "current_location": s.world.current_location,
+            "start_datetime": s.world.start_datetime,
+            "current_datetime": s.world.current_datetime,
+            "end_datetime": s.world.end_datetime,
+            "nicknames": s.world.nicknames,
+            "current_nickname": s.world.current_nickname,
             "turn": s.world.turn,
             "history": s.history.iter().filter(|m| m.role != "system").collect::<Vec<_>>(),
         })
@@ -232,6 +289,7 @@ fn write_state(gs: &GameState, sessions: &HashMap<String, PlayerSession>, active
         "model": gs.model,
         "main_quest": gs.main_quest,
         "main_quest_steps": gs.main_quest_steps,
+        "main_quest_step_status": gs.main_quest_step_status,
         "side_quests": sqs,
         "active_player": active,
         "settings": gs.settings,
@@ -272,19 +330,21 @@ fn call_hf(client: &Client, key: &str, model: &str, msgs: &[Message], max_tokens
 
 // ─── Extraction ───────────────────────────────────────────────────────────────
 
-fn extract(client: &Client, key: &str, model: &str, action: &str, reply: &str, world: &WorldState) -> (WorldState, Option<String>) {
+fn extract(client: &Client, key: &str, model: &str, action: &str, reply: &str, world: &WorldState) -> (WorldState, Option<String>, bool, Option<u32>) {
     let inv   = serde_json::to_string(&world.inventory).unwrap_or_default();
     let chars = serde_json::to_string(&world.side_characters).unwrap_or_default();
     let locs  = serde_json::to_string(&world.locations).unwrap_or_default();
 
     let sys = r#"You are a JSON extraction engine for an RPG. You receive game events and return ONLY a raw JSON object — no markdown, no code fences, no explanation. Any deviation from pure JSON will cause a system error."#;
 
-    let user = format!(r##"Player action: {action}
+let user = format!(r##"Player action: {action}
 GM response: {reply}
 
 Current inventory JSON: {inv}
 Current side_characters JSON: {chars}
 Current locations JSON: {locs}
+Current in-game time: {curr_time}
+Current nicknames: {nicknames}
 
 Produce this exact JSON (all fields required, use the exact field names shown):
 {{
@@ -292,25 +352,36 @@ Produce this exact JSON (all fields required, use the exact field names shown):
     {{"name": "item name", "quantity": "number or description", "note": "condition or context"}}
   ],
   "side_characters": [
-    {{"name": "full name (first and last)", "description": "2-sentence physical and personality description", "relation": "ally|enemy|neutral|unknown", "outline_color": "#RRGGBB"}}
+    {{"name": "full name (first and last)", "description": "2 sentences describing physical appearance and personality", "relation": "ally|enemy|neutral|unknown", "outline_color": "#RRGGBB", "character_features": {{"gender": "male/female/etc", "build": "slender/muscular/etc", "age": "young/middle-aged/etc", "clothing": "what they're wearing"}}, "inventory": []}}
   ],
   "locations": [
-    {{"name": "place name", "description": "2-sentence description of this place", "last_visited": {turn}, "outline_color": "#RRGGBB"}}
+    {{"name": "place name", "description": "2 sentences describing the atmosphere and notable features", "last_visited": {turn}, "outline_color": "#RRGGBB", "location_features": {{"interior": "what it looks like inside", "exterior": "what it looks like outside", "mood": "the feeling/atmosphere"}}}}
   ],
-  "clothing_update": "new clothing description" or null
+  "current_location": "name of the location the player is currently at" or null,
+  "current_datetime": "estimated in-game date and time in format like '7 August 1200, 11:45 PM'" or null,
+  "game_won": true or false,
+  "clothing_update": "new clothing description" or null,
+  "new_nickname": "any nickname or title the player earns (e.g., 'the Brave', 'Cora Brightblade', 'Captain')" or null,
+  "completed_quest_step": "number (1-indexed) of quest step completed, or null if none" or null
 }}
 
 Critical rules:
-1. COPY ALL existing entries from current arrays unless they explicitly changed.
-2. ADD any new characters mentioned BY NAME in the GM response (guards, merchants, named NPCs, animals with roles). EXCLUDE the word "You" — do NOT add it as a character.
-3. ADD the current location if it can be identified from context.
-4. last_visited must be the integer {turn}, not a string.
-5. clothing_update: set ONLY if clothing explicitly changed in this scene. Otherwise null (not the string "null").
-6. relation values must be exactly one of: ally, enemy, neutral, unknown.
-7. outline_color: assign a RANDOM readable hex color (#RRGGBB format) to each character and location. Use varied but legible colors (avoid very dark or very light). Example: "#4a90d9", "#d97a4a", "#6bd94a", "#d94ab8", "#4ad9d1".
-8. Character names MUST include both first and last name when possible (e.g., "John Smith" not just "John").
-9. Return ONLY the JSON object starting with {{ — nothing before or after."##,
-        action=action, reply=reply, inv=inv, chars=chars, locs=locs, turn=world.turn+1);
+  1. COPY ALL existing entries from current arrays unless they explicitly changed.
+  2. ADD any new characters mentioned BY NAME in the GM response (guards, merchants, named NPCs, animals with roles). EXCLUDE the word "You" — do NOT add it as a character.
+  3. ADD the current location if it can be identified from context.
+  4. last_visited must be the integer {turn}, not a string.
+  5. current_datetime: Estimate the new in-game time based on time passing in the narrative. Advance time realistically — typically 15-60 minutes per action, more if resting/traveling. If time crosses midnight, advance the date. Format: '7 August 1200, 11:45 PM'.
+  6. game_won: Set to true ONLY if the GM response explicitly shows the main quest is complete (e.g., "You are crowned as King", "You have escaped the island", "The curse is destroyed"). Otherwise false. This should be rare.
+  7. clothing_update: set ONLY if clothing explicitly changed in this scene. Otherwise null (not the string "null").
+   8. relation values must be exactly one of: ally, enemy, neutral, unknown.
+   9. outline_color: Use a CONSISTENT color based on the name string hash. Same name always gets the same color. Use these legible colors: "#4a90d9" (blue), "#d97a4a" (orange), "#6bd94a" (green), "#d94ab8" (pink), "#4ad9d1" (cyan), "#d9c84a" (gold), "#8a4ad9" (purple), "#4ad96b" (lime). Hash the name to pick one deterministically.
+  10. Character names MUST include both first and last name when possible (e.g., "John Smith" not just "John").
+  11. DO NOT add duplicate characters with similar names (e.g., if "John Smith" exists, do NOT add just "John" as a new character).
+  12. DO NOT add duplicate locations with the same name. If the location already exists, update its description only.
+  13. new_nickname: If the GM response gives the player a nickname or title (e.g., "You are now called the Brave", "From this day forth, you shall be known as..."), extract it. Set to null if no new nickname is given. This becomes the current_nickname.
+  14. completed_quest_step: If the GM response shows completing a main quest step (e.g., player finds food/shelter, earns coin, gains foothold), set this to the 1-based step number completed. Otherwise null.
+  15. Return ONLY the JSON object starting with {{ — nothing before or after."##,
+        action=action, reply=reply, inv=inv, chars=chars, locs=locs, turn=world.turn+1, curr_time=world.current_datetime.as_deref().unwrap_or("unknown"), nicknames=world.nicknames.join(", "));
 
     let msgs = vec![
         Message { role: "system".to_string(), content: sys.to_string() },
@@ -318,7 +389,7 @@ Critical rules:
     ];
 
     match call_hf(client, key, model, &msgs, 1024) {
-        Err(e) => { eprintln!("  [extract err] {}", e); (world.clone(), None) }
+        Err(e) => { eprintln!("  [extract err] {}", e); (world.clone(), None, false, None) }
         Ok(raw) => {
             // Strip any accidental markdown fences
             let s = raw.trim();
@@ -330,14 +401,29 @@ Critical rules:
             let json_str = &s[start..end];
 
             match serde_json::from_str::<Value>(json_str) {
-                Err(e) => { eprintln!("  [extract parse] {} | raw snippet: {}", e, &json_str[..json_str.len().min(400)]); (world.clone(), None) }
+                Err(e) => { eprintln!("  [extract parse] {} | raw snippet: {}", e, &json_str[..json_str.len().min(400)]); (world.clone(), None, false, None) }
                 Ok(v) => {
                     let new_inv:   Vec<InventoryItem>  = serde_json::from_value(v["inventory"].clone()).unwrap_or(world.inventory.clone());
                     let new_chars: Vec<SideCharacter>  = serde_json::from_value(v["side_characters"].clone()).unwrap_or(world.side_characters.clone());
                     let new_locs:  Vec<Location>       = serde_json::from_value(v["locations"].clone()).unwrap_or(world.locations.clone());
-                    let clothing   = v["clothing_update"].as_str().filter(|s| !s.trim().is_empty() && *s != "null").map(str::to_string);
-                    let new_world  = WorldState { inventory: new_inv, side_characters: new_chars, locations: new_locs, turn: world.turn+1 };
-                    (new_world, clothing)
+                    let curr_loc   = v["current_location"].as_str().filter(|s| !s.trim().is_empty() && *s != "null").map(str::to_string);
+                    let curr_time = v["current_datetime"].as_str().filter(|s| !s.trim().is_empty() && *s != "null").map(str::to_string);
+                    let clothing  = v["clothing_update"].as_str().filter(|s| !s.trim().is_empty() && *s != "null").map(str::to_string);
+                    let game_won  = v["game_won"].as_bool().unwrap_or(false);
+                    let new_nickname = v["new_nickname"].as_str().filter(|s| !s.trim().is_empty() && *s != "null").map(str::to_string);
+                    let completed_step = v["completed_quest_step"].as_u64().map(|n| n as u32);
+                    let mut new_world = WorldState { inventory: new_inv, side_characters: new_chars, locations: new_locs, current_location: curr_loc, current_datetime: curr_time, turn: world.turn+1, ..Default::default() };
+                    new_world.start_datetime = world.start_datetime.clone();
+                    if let Some(nn) = new_nickname {
+                        if !nn.is_empty() && !world.nicknames.contains(&nn) {
+                            new_world.nicknames.push(nn.clone());
+                            new_world.current_nickname = Some(nn);
+                        }
+                    } else {
+                        new_world.current_nickname = world.current_nickname.clone();
+                    }
+                    new_world.nicknames = world.nicknames.clone();
+                    (new_world, clothing, game_won, completed_step)
                 }
             }
         }
@@ -462,10 +548,12 @@ fn build_game_from_setup(payload: &SetupPayload, key: &str, client: &Client) -> 
     };
 
     let session_id = chrono::Utc::now().timestamp_millis().to_string();
+    let main_quest_step_status: Vec<QuestStepStatus> = story.main_quest_steps.iter().map(|s| QuestStepStatus { step: s.to_string(), completed: false, completed_at: None }).collect();
     let gs = GameState {
         model: payload.model.clone(),
         main_quest: story.win_conditions.to_string(),
         main_quest_steps: story.main_quest_steps.iter().map(|s| s.to_string()).collect(),
+        main_quest_step_status,
         side_quests,
         scenario_title: story.title.to_string(),
         session_id,
@@ -477,7 +565,7 @@ fn build_game_from_setup(payload: &SetupPayload, key: &str, client: &Client) -> 
     let mut sessions = HashMap::new();
     for (i, p) in payload.players.iter().enumerate() {
         let seed = seed_base.wrapping_add(i as u64 * 997);
-        sessions.insert(p.name.clone(), PlayerSession::new(&p.name, &system_prompt, seed));
+        sessions.insert(p.name.clone(), PlayerSession::new(&p.name, &system_prompt, seed, story.start_datetime));
     }
     (gs, sessions)
 }
@@ -571,7 +659,7 @@ fn opening_scene(client: &Client, key: &str, gs: &GameState, session: &mut Playe
             session.last_gm_reply = reply.clone();
             session.history.push(Message { role: "assistant".to_string(), content: reply.clone() });
             print!("  [extracting world state...]"); io::stdout().flush().unwrap();
-            let (w, _) = extract(client, key, &gs.model, "game start", &reply, &session.world);
+            let (w, _, _, _) = extract(client, key, &gs.model, "game start", &reply, &session.world);
             session.world = w;
             println!(" done.");
             let mut s2 = snap.clone(); s2.insert(session.stats.name.clone(), session.clone());
@@ -583,7 +671,7 @@ fn opening_scene(client: &Client, key: &str, gs: &GameState, session: &mut Playe
 
 // ─── Process action ───────────────────────────────────────────────────────────
 
-fn process_action(client: &Client, key: &str, gs: &GameState, sessions: &mut HashMap<String, PlayerSession>, name: &str, input: &str) {
+fn process_action(client: &Client, key: &str, gs: &mut GameState, sessions: &mut HashMap<String, PlayerSession>, name: &str, input: &str) {
     match input.trim().to_lowercase().as_str() {
         "quest"|"q" => { println!("♛ MAIN QUEST\n{}", gs.main_quest); return; }
         "sidequests"|"sidequest"|"sq" => {
@@ -592,7 +680,19 @@ fn process_action(client: &Client, key: &str, gs: &GameState, sessions: &mut Has
             return;
         }
         "stats"|"s" => {
-            for s in sessions.values() { println!("Player: {} | Prompts: {} | Chars: {}", s.stats.name, s.stats.prompt_count, s.stats.total_chars); }
+            for sess in sessions.values() {
+                let start_dt = sess.world.start_datetime.as_deref().unwrap_or("unknown");
+                let curr_dt = sess.world.current_datetime.as_deref().unwrap_or("unknown");
+                let char_count = sess.world.side_characters.len();
+                let loc_count = sess.world.locations.len();
+                println!("=== STATS for {} ===", sess.stats.name);
+                println!("  Elapsed game time: {} → {}", start_dt, curr_dt);
+                println!("  Prompts: {} | Total chars: {}", sess.stats.prompt_count, sess.stats.total_chars);
+                println!("  Characters met: {} | Locations visited: {}", char_count, loc_count);
+                for (i, r) in sess.stats.prompt_log.iter().enumerate() {
+                    println!("    [{}] {} chars: {}", i + 1, r.char_count, r.full_text.chars().take(60).collect::<String>());
+                }
+            }
             return;
         }
         "inventory"|"inv" => { if let Some(s) = sessions.get(name) { for i in &s.world.inventory { println!("• {} x{} — {}", i.name, i.quantity, i.note); } } return; }
@@ -651,13 +751,27 @@ fn process_action(client: &Client, key: &str, gs: &GameState, sessions: &mut Has
             println!("{}\n", reply);
             print!("  [updating world state...]"); io::stdout().flush().unwrap();
             let world = sessions[name].world.clone();
-            let (new_world, clothing) = extract(client, key, &gs.model, input, &reply, &world);
+            let (new_world, clothing, game_won, completed_step) = extract(client, key, &gs.model, input, &reply, &world);
             println!(" done.");
             let s = sessions.get_mut(name).unwrap();
             s.last_gm_reply = reply.clone();
             s.history.push(Message { role: "assistant".to_string(), content: reply });
             if let Some(c) = clothing { println!("  [clothing → {}]", c); s.character.clothing = c; }
             s.world = new_world;
+            if let Some(step_num) = completed_step {
+                if let Some(step_status) = gs.main_quest_step_status.get_mut((step_num - 1) as usize) {
+                    if !step_status.completed {
+                        step_status.completed = true;
+                        step_status.completed_at = s.world.current_datetime.clone();
+                        eprintln!("[🎯] Quest step {} completed: {}", step_num, step_status.step);
+                    }
+                }
+            }
+            if game_won {
+                let end_time = s.world.current_datetime.clone().unwrap_or_else(|| "unknown".to_string());
+                eprintln!("\n[🎉] GAME WON! The player has completed the main quest!");
+                eprintln!("    End time: {}", end_time);
+            }
             write_state(gs, sessions, name);
         }
         Err(e) => {
@@ -746,9 +860,9 @@ fn game_loop(client: &Client, key: &str, gs: &mut GameState, sessions: &mut Hash
 
 fn main() {
     dotenv().ok();
-    let key = match std::env::var("HF_API_KEY") {
-        Ok(k) if !k.is_empty() => { eprintln!("[game] HF_API_KEY loaded."); k }
-        _ => { eprint!("HF_API_KEY not set. Enter key: "); io::stdout().flush().unwrap(); read_line("") }
+    let key = match std::env::var("HF_API_TOKEN") {
+        Ok(k) if !k.is_empty() => { eprintln!("[game] HF_API_TOKEN loaded."); k }
+        _ => { eprint!("HF_API_TOKEN not set. Enter key: "); io::stdout().flush().unwrap(); read_line("") }
     };
     let client = Client::builder().timeout(Duration::from_secs(180)).build().unwrap();
     // Clear files from any previous session

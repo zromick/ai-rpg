@@ -22,18 +22,18 @@ export default function App() {
   const [selectedPlayer, setSelectedPlayer] = useState('')
   const [imageService, setImageService]     = useState<ImageService>(getService(DEFAULT_SERVICE_ID))
   const [showSettings, setShowSettings]     = useState(false)
-  const [models] = useState(() => [
-    { label:'Llama 3.1 8B (default)', id:'meta-llama/Llama-3.1-8B-Instruct' },
-    { label:'Llama 3.2 3B',           id:'meta-llama/Llama-3.2-3B-Instruct' },
-    { label:'Gemma 2 9B',             id:'google/gemma-2-9b-it' },
-    { label:'Mistral 7B v0.3',        id:'mistralai/Mistral-7B-Instruct-v0.3' },
-    { label:'Mistral Nemo',           id:'mistralai/Mistral-Nemo-Instruct-2407' },
-    { label:'Zephyr 7B',              id:'HuggingFaceH4/zephyr-7b-beta' },
-    { label:'Hermes 3 Llama',         id:'NousResearch/Hermes-3-Llama-3.1-8B' },
-    { label:'Llama Abliterated',      id:'chaldene/Llama-3.1-8B-Instruct-Abliterated' },
-    { label:'Mixtral 8x7B',           id:'mistralai/Mixtral-8x7B-Instruct-v0.1' },
-    { label:'Phi-3 Medium',           id:'microsoft/Phi-3-medium-128k-instruct' },
-    { label:'Qwen 2.5 7B',            id:'Qwen/Qwen2.5-7B-Instruct' },
+const [models] = useState(() => [
+    { label:'Llama 3.1 8B Instruct (default)', id:'meta-llama/Llama-3.1-8B-Instruct' },
+    { label:'Llama 3.2 3B Instruct',         id:'meta-llama/Llama-3.2-3B-Instruct' },
+    { label:'Gemma 2 9B IT',               id:'google/gemma-2-9b-it' },
+    { label:'Mistral 7B v0.3',                 id:'mistralai/Mistral-7B-Instruct-v0.3' },
+    { label:'Mistral Nemo 2407',              id:'mistralai/Mistral-Nemo-Instruct-2407' },
+    { label:'Zephyr 7B Beta',                 id:'HuggingFaceH4/zephyr-7b-beta' },
+    { label:'Hermes 3 Llama 3.1 8B',          id:'NousResearch/Hermes-3-Llama-3.1-8B' },
+    { label:'Llama 3.1 8B Abliterated',      id:'chaldene/Llama-3.1-8B-Instruct-Abliterated' },
+    { label:'Mixtral 8x7B',                   id:'mistralai/Mixtral-8x7B-Instruct-v0.1' },
+    { label:'Phi-3 Medium 128k',            id:'microsoft/Phi-3-medium-128k-instruct' },
+    { label:'Qwen 2.5 7B Instruct',           id:'Qwen/Qwen2.5-7B-Instruct' },
   ])
 
   useEffect(() => {
@@ -106,6 +106,8 @@ export default function App() {
 
   const ambientRadioEnabled = gameState.settings?.common_rules?.find(r => r.label === 'Ambient Radio')?.active ?? true
   const narrationEnabled = gameState.settings?.common_rules?.find(r => r.label === 'Narration Voice')?.active ?? true
+  const characterColoringEnabled = gameState.settings?.common_rules?.find(r => r.label === 'Character Coloring')?.active ?? false
+  const locationColoringEnabled = gameState.settings?.common_rules?.find(r => r.label === 'Location Coloring')?.active ?? false
   const showConsoleError = error && error.includes('[RUST]')
 
   return (
@@ -129,7 +131,7 @@ export default function App() {
 
       <main className="layout">
         <aside className="col-left">
-          <QuestPanel mainQuest={gameState.main_quest} mainQuestSteps={gameState.main_quest_steps} sideQuests={gameState.side_quests} history={player.history.map(h => h.content)} />
+          <QuestPanel mainQuest={gameState.main_quest} mainQuestSteps={gameState.main_quest_steps} mainQuestStepStatus={gameState.main_quest_step_status} sideQuests={gameState.side_quests} history={player.history.map(h => h.content)} />
         </aside>
         <section className="col-center">
           <Terminal
@@ -138,14 +140,24 @@ export default function App() {
             mainQuest={gameState.main_quest} sideQuests={gameState.side_quests}
             promptCount={player.prompt_count} totalChars={player.total_chars}
             inventory={player.inventory} sideCharacters={player.side_characters}
-            locations={player.locations} sendCommand={sendCommand}
+            locations={player.locations}
+            characterColoringEnabled={characterColoringEnabled}
+            locationColoringEnabled={locationColoringEnabled}
+            sendCommand={sendCommand}
             onOpenSettings={() => setShowSettings(true)}
             onTitle={handleTitle}
             onRestart={handleRestart}
+            startTime={player.start_datetime}
+            currentTime={player.current_datetime}
+            endTime={player.end_datetime}
+            currentNickname={player.current_nickname}
+            nicknames={player.nicknames}
           />
         </section>
         <aside className="col-right">
-          <CharacterPanel player={player} seed={nameSeed(player.name)} service={imageService} />
+          <div className="col-right-content">
+            <CharacterPanel player={player} seed={nameSeed(player.name)} service={imageService} />
+          </div>
           {ambientRadioEnabled && gameState.scenario && (
             <AmbientRadio scenarioTitle={gameState.scenario} />
           )}
@@ -163,9 +175,9 @@ export default function App() {
       )}
 
       <footer className="statusbar">
-        <span>Turn <strong>{player.turn}</strong></span>
+        <span>Turn: <strong>{player.turn}</strong></span>
         <span>Prompts: <strong>{player.prompt_count}</strong></span>
-        <span className="statusbar-sep">│</span>
+        <span>Time: <strong>{player.current_datetime || '--'}</strong></span>
         <span className="statusbar-updated">{new Date(gameState.updated_at).toLocaleTimeString()}</span>
       </footer>
 

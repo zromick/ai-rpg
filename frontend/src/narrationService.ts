@@ -1,95 +1,82 @@
-// src/narrationServices.ts
-// Hugging Face Inference API — Text-to-Speech
-// Same pattern as imageServices: POST → binary blob → object URL
-// Token read from VITE_HF_API_KEY (same env var as image services)
+// src/narrationService.ts
 
 export interface NarrationService {
   id: string
   name: string
   description: string
-  voice: string          // human-readable voice/style label
-  fetchAudio: (text: string) => Promise<string>  // returns object URL
+  voice: string
+  fetchAudio: (text: string) => Promise<string>
 }
 
-const HF_API = 'https://router.huggingface.co/hf-inference/models'
-const TOKEN = import.meta.env.VITE_HF_API_KEY ?? ''
+const BRIDGE_API = '/api'
 
 async function hfAudio(
   model: string,
   payload: Record<string, unknown>,
 ): Promise<string> {
-  const response = await fetch(`${HF_API}/${model}`, {
+  const res = await fetch(`${BRIDGE_API}/tts`, {
     method: 'POST',
-    headers: {
-      Authorization: `Bearer ${TOKEN}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(payload),
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ model, text: payload.inputs }),
   })
 
-  if (!response.ok) {
-    const err = await response.text()
-    throw new Error(`HF TTS error ${response.status}: ${err}`)
+  if (!res.ok) {
+    const err = await res.text().catch(() => 'Unknown error')
+
+    if (res.status === 503) {
+      throw new Error('Model is loading. Try again in a few seconds.')
+    }
+    if (res.status === 401) {
+      throw new Error('Invalid HF API key.')
+    }
+    throw new Error(`TTS error ${res.status}: ${err}`)
   }
 
-  const blob = await response.blob()
+  const blob = await res.blob()
   return URL.createObjectURL(blob)
 }
 
+// Only models actually deployed on the free HF Inference API.
+// Parler-TTS, Kokoro, and Dia are NOT available serverless —
+// they require dedicated inference endpoints (paid).
+
 export const NARRATION_SERVICES: NarrationService[] = [
-  {
-    id: 'speecht5',
-    name: 'Microsoft SpeechT5',
-    description: 'Fast, reliable, neutral English voice. Best for long narration.',
-    voice: 'Neutral male (LibriTTS)',
-    fetchAudio: (text) =>
-      hfAudio('microsoft/speecht5_tts', { inputs: text }),
-  },
-  {
-    id: 'parler_mini',
-    name: 'Parler-TTS Mini',
-    description: 'Expressive, high-quality. Supports natural language voice descriptions.',
-    voice: 'Expressive female, clear audio',
-    fetchAudio: (text) =>
-      hfAudio('parler-tts/parler-tts-mini-v1', {
-        inputs: text,
-        parameters: {
-          description:
-            'A deep, dramatic male narrator speaks slowly and clearly with a cinematic tone. The recording is of very high quality, with very clear audio.',
-        },
-      }),
-  },
-  {
-    id: 'kokoro',
-    name: 'Kokoro 82M',
-    description: 'Tiny but surprisingly high quality. Very fast inference.',
-    voice: 'American female (af_heart)',
-    fetchAudio: (text) =>
-      hfAudio('hexgrad/Kokoro-82M', {
-        inputs: text,
-        parameters: { voice: 'af_heart' },
-      }),
-  },
-  {
-    id: 'mms_tts',
-    name: 'Facebook MMS-TTS',
-    description: "Meta's Massively Multilingual Speech model. Solid English narrator.",
-    voice: 'Neutral English (eng)',
-    fetchAudio: (text) =>
-      hfAudio('facebook/mms-tts-eng', { inputs: text }),
-  },
-  {
-    id: 'dia_1b',
-    name: 'Nari Labs Dia 1.6B',
-    description: 'Large, highly realistic. Best overall quality, slowest to generate.',
-    voice: 'Cinematic narrator',
-    fetchAudio: (text) =>
-      hfAudio('nari-labs/Dia-1.6B', { inputs: text }),
-  },
+{
+  id: 'speecht5',
+  name: 'Microsoft SpeechT5',
+  description: 'Fast and reliable. Best all-around for English narration.',
+  voice: 'Neutral (LibriTTS)',
+  fetchAudio: (text) =>
+    hfAudio('microsoft/speecht5_tts', { inputs: text }),
+},
+{
+  id: 'mms_tts_eng',
+  name: 'Meta MMS-TTS English',
+  description: "Meta's multilingual speech model. Clear and consistent.",
+  voice: 'Neutral English',
+  fetchAudio: (text) =>
+    hfAudio('facebook/mms-tts-eng', { inputs: text }),
+},
+{
+  id: 'bark_small',
+  name: 'Suno Bark Small',
+  description: 'Expressive and varied. Slower but more character in the voice.',
+  voice: 'Expressive English',
+  fetchAudio: (text) =>
+    hfAudio('suno/bark-small', { inputs: text }),
+},
+{
+  id: 'espnet_vits',
+  name: 'ESPnet VITS (LJSpeech)',
+  description: 'Lightweight VITS model. Fast, clear female voice.',
+  voice: 'Female (LJSpeech)',
+  fetchAudio: (text) =>
+    hfAudio('espnet/kan-bayashi_ljspeech_vits', { inputs: text }),
+},
 ]
 
 export const DEFAULT_NARRATION_SERVICE_ID = 'speecht5'
 
 export function getNarrationService(id: string): NarrationService {
-  return NARRATION_SERVICES.find(s => s.id === id) ?? NARRATION_SERVICES[0]
+return NARRATION_SERVICES.find(s => s.id === id) ?? NARRATION_SERVICES[0]
 }

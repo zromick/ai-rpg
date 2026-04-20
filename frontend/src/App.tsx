@@ -14,6 +14,7 @@ import { TitleScreen } from './components/TitleScreen'
 import { SplashScreen } from './components/SplashScreen'
 
 const SAVE_SLOT_KEY = 'ai_rpg_save_slot_1'
+const MOBILE_BREAKPOINT = 768
 
 function nameSeed(name: string): number {
   let h = 0; for (const c of name) h = (Math.imul(31, h) + c.charCodeAt(0)) | 0; return Math.abs(h)
@@ -27,8 +28,11 @@ export default function App() {
   const [imageService, setImageService]     = useState<ImageService>(getService(DEFAULT_SERVICE_ID))
   const [showSettings, setShowSettings]     = useState(false)
   const [confirmAction, _setConfirmAction] = useState<'restart' | 'title' | null>(null)
-  const [showSplash, setShowSplash] = useState(true)
-  const [showTitle, setShowTitle] = useState(false)
+  const [showSplash, setShowSplash] = useState(false)
+  const [showTitle, setShowTitle] = useState(true)
+  const [mobileView, setMobileView] = useState<'quest' | 'terminal' | 'character'>('terminal')
+  const [isMobileSize, setIsMobileSize] = useState(false)
+  const [currentSlot, setCurrentSlot] = useState(1)
   const [googlePlayUser, setGooglePlayUser] = useState<{ id: string; name: string } | null>(() => {
     try {
       const saved = localStorage.getItem(SAVE_SLOT_KEY)
@@ -72,27 +76,46 @@ const [models] = useState(() => [
     setShowTitle(true)
   }, [])
 
+  useEffect(() => {
+    const checkMobile = () => setIsMobileSize(window.innerWidth < MOBILE_BREAKPOINT)
+    checkMobile()
+    window.addEventListener('resize', checkMobile)
+    return () => window.removeEventListener('resize', checkMobile)
+  }, [])
+
+  useEffect(() => {
+    if (!gameState) return
+    const p = gameState.players.find(pl => pl.name === selectedPlayer) ?? gameState.players[0]
+    if (p?.romance_mode) setMobileView('terminal')
+    if (p?.win_mode) setMobileView('terminal')
+  }, [gameState?.players, selectedPlayer])
+
   const handleGooglePlayLogin = useCallback((user: { id: string; name: string }) => {
     setGooglePlayUser(user)
     localStorage.setItem(SAVE_SLOT_KEY, JSON.stringify({ googlePlayUser: user, savedAt: new Date().toISOString() }))
   }, [])
 
+  const handleGoogleLogout = useCallback(() => {
+    setGooglePlayUser(null)
+    localStorage.removeItem(SAVE_SLOT_KEY)
+    const key = `ai_rpg_save_slot_${currentSlot}`
+    localStorage.removeItem(key)
+  }, [currentSlot])
+
   useEffect(() => {
     if (gameState && googlePlayUser) {
       try {
-        const existing = localStorage.getItem(SAVE_SLOT_KEY)
-        const parsed = existing ? JSON.parse(existing) : {}
-        localStorage.setItem(SAVE_SLOT_KEY, JSON.stringify({
-          ...parsed,
+        const key = `ai_rpg_save_slot_${currentSlot}`
+        localStorage.setItem(key, JSON.stringify({
           googlePlayUser,
           gameState,
           savedAt: new Date().toISOString()
         }))
       } catch (e) {
-        console.warn('Failed to save game to cloud', e)
+        console.warn('Failed to save game', e)
       }
     }
-  }, [gameState, googlePlayUser])
+  }, [gameState, googlePlayUser, currentSlot])
 
   const handleSetupSubmit = useCallback(async (payload: SetupPayload) => {
     await sendCommand(FAKE_SETUP_PLAYER, `__setup_complete__ ${JSON.stringify(payload)}`)
@@ -108,12 +131,18 @@ const [models] = useState(() => [
 
   const handleTitle = useCallback(async () => {
     await sendCommand(FAKE_SETUP_PLAYER, 'title')
+    setTimeout(() => {
+      setShowTitle(true)
+    }, 500)
   }, [sendCommand])
 
   const handleRestart = useCallback(async () => {
     if (!gameState) return
     const player = gameState.players.find(p => p.name === selectedPlayer) ?? gameState.players[0]
-    if (player) await sendCommand(player.name, 'restart')
+    if (player) {
+      await sendCommand(player.name, 'restart')
+      setSelectedPlayer('')
+    }
   }, [sendCommand, gameState, selectedPlayer])
 
   // confirmAction kept for potential future use in confirm dialogs
@@ -131,6 +160,7 @@ const [models] = useState(() => [
       <TitleScreen
         googlePlayUser={googlePlayUser}
         onGooglePlayLogin={handleGooglePlayLogin}
+        onGoogleLogout={handleGoogleLogout}
         onGuestPlay={() => setShowTitle(false)}
         saveSlots={[1,2,3,4].map(slot => ({
           slot,
@@ -147,6 +177,7 @@ const [models] = useState(() => [
           })()
         }))}
         onLoadSlot={async (slot) => {
+          setCurrentSlot(slot)
           try {
             const key = `ai_rpg_save_slot_${slot}`
             const saved = localStorage.getItem(key)
@@ -164,12 +195,13 @@ const [models] = useState(() => [
     )
   }
 
-  // ── Show title screen before game starts if there's saved game but no active game ─
+// ── Show title screen before game starts if there's saved game but no active game ─
   if (!gameState && !setupState) {
     return (
       <TitleScreen
         googlePlayUser={googlePlayUser}
         onGooglePlayLogin={handleGooglePlayLogin}
+        onGoogleLogout={handleGoogleLogout}
         onGuestPlay={() => setShowTitle(false)}
         saveSlots={[1,2,3,4].map(slot => ({
           slot,
@@ -186,6 +218,7 @@ const [models] = useState(() => [
           })()
         }))}
         onLoadSlot={async (slot) => {
+          setCurrentSlot(slot)
           try {
             const key = `ai_rpg_save_slot_${slot}`
             const saved = localStorage.getItem(key)
@@ -199,7 +232,7 @@ const [models] = useState(() => [
           setShowTitle(false)
         }}
         onStartNew={() => {
-          setShowTitle(false)
+setShowTitle(false)
         }}
       />
     )
@@ -260,7 +293,7 @@ const [models] = useState(() => [
   const showConsoleError = error && error.includes('[RUST]')
 
   return (
-    <div className={`app ${themeClass} ${battleClass}`}>
+    <div className={`app ${themeClass} ${battleClass} ${isMobileSize ? 'has-mobile-nav' : ''}`}>
       <header className="topbar">
         <div className="topbar-left">
           <span className="topbar-crown">♛</span>
@@ -278,43 +311,90 @@ const [models] = useState(() => [
         <PlayerTabs players={gameState.players} activePlayer={gameState.active_player} selectedPlayer={player.name} onSelect={setSelectedPlayer} />
       )}
 
-      <main className="layout">
-        <aside className="col-left">
-          <QuestPanel mainQuest={gameState.main_quest} mainQuestSteps={gameState.main_quest_steps} mainQuestStepStatus={gameState.main_quest_step_status} sideQuests={gameState.side_quests} history={player.history.map(h => h.content)} />
-        </aside>
-        <section className="col-center">
-          <Terminal
-            history={player.history} playerName={player.name}
-            isActive={player.name === gameState.active_player}
-            mainQuest={gameState.main_quest} sideQuests={gameState.side_quests}
-            promptCount={player.prompt_count} totalChars={player.total_chars}
-            inventory={player.inventory} sideCharacters={player.side_characters}
-            locations={player.locations}
-            characterColoringEnabled={characterColoringEnabled}
-            locationColoringEnabled={locationColoringEnabled}
-            sendCommand={sendCommand}
-            onOpenSettings={handleOpenSettings}
-            onTitle={handleTitle}
-            onRestart={handleRestart}
-            startTime={player.start_datetime}
-            currentTime={player.current_datetime}
-            endTime={player.end_datetime}
-            currentNickname={player.current_nickname}
-            nicknames={player.nicknames}
-          />
-        </section>
-        <aside className="col-right">
-          <div className="col-right-content">
-            <CharacterPanel player={player} seed={nameSeed(player.name)} service={imageService} sendCommand={sendCommand} />
-          </div>
-          {ambientRadioEnabled && gameState.scenario && (
-            <AmbientRadio scenarioTitle={gameState.scenario} isBattle={player.battle_mode} isRomance={player.romance_mode} isWin={player.win_mode} />
-          )}
-          {narrationEnabled && (
-            <Narrator enabled={narrationEnabled} />
-          )}
-        </aside>
+      <main className={`layout ${isMobileSize ? 'layout-mobile' : ''}`}>
+        {(isMobileSize && mobileView === 'quest') && (
+          <aside className="col-left col-mobile">
+            <QuestPanel mainQuest={gameState.main_quest} mainQuestSteps={gameState.main_quest_steps} mainQuestStepStatus={gameState.main_quest_step_status} sideQuests={gameState.side_quests} history={player.history.map(h => h.content)} />
+          </aside>
+        )}
+        {(isMobileSize && mobileView === 'terminal') && (
+          <section className="col-center col-mobile">
+            <Terminal
+              history={player.history} playerName={player.name}
+              isActive={player.name === gameState.active_player}
+              mainQuest={gameState.main_quest} sideQuests={gameState.side_quests}
+              promptCount={player.prompt_count} totalChars={player.total_chars}
+              inventory={player.inventory} sideCharacters={player.side_characters}
+              locations={player.locations}
+              characterColoringEnabled={characterColoringEnabled}
+              locationColoringEnabled={locationColoringEnabled}
+              sendCommand={sendCommand}
+              onOpenSettings={handleOpenSettings}
+              onTitle={handleTitle}
+              onRestart={handleRestart}
+              startTime={player.start_datetime}
+              currentTime={player.current_datetime}
+              endTime={player.end_datetime}
+              currentNickname={player.current_nickname}
+              nicknames={player.nicknames}
+            />
+          </section>
+        )}
+        {(isMobileSize && mobileView === 'character') && (
+          <aside className="col-right col-mobile">
+            <div className="col-right-content">
+              <CharacterPanel player={player} seed={nameSeed(player.name)} service={imageService} sendCommand={sendCommand} />
+            </div>
+          </aside>
+        )}
+        {!isMobileSize && (
+          <>
+            <aside className="col-left">
+              <QuestPanel mainQuest={gameState.main_quest} mainQuestSteps={gameState.main_quest_steps} mainQuestStepStatus={gameState.main_quest_step_status} sideQuests={gameState.side_quests} history={player.history.map(h => h.content)} />
+            </aside>
+            <section className="col-center">
+              <Terminal
+                history={player.history} playerName={player.name}
+                isActive={player.name === gameState.active_player}
+                mainQuest={gameState.main_quest} sideQuests={gameState.side_quests}
+                promptCount={player.prompt_count} totalChars={player.total_chars}
+                inventory={player.inventory} sideCharacters={player.side_characters}
+                locations={player.locations}
+                characterColoringEnabled={characterColoringEnabled}
+                locationColoringEnabled={locationColoringEnabled}
+                sendCommand={sendCommand}
+                onOpenSettings={handleOpenSettings}
+                onTitle={handleTitle}
+                onRestart={handleRestart}
+                startTime={player.start_datetime}
+                currentTime={player.current_datetime}
+                endTime={player.end_datetime}
+                currentNickname={player.current_nickname}
+                nicknames={player.nicknames}
+              />
+            </section>
+            <aside className="col-right">
+              <div className="col-right-content">
+                <CharacterPanel player={player} seed={nameSeed(player.name)} service={imageService} sendCommand={sendCommand} />
+              </div>
+              {ambientRadioEnabled && gameState.scenario && (
+                <AmbientRadio scenarioTitle={gameState.scenario} isBattle={player.battle_mode} isRomance={player.romance_mode} isWin={player.win_mode} />
+              )}
+              {narrationEnabled && (
+                <Narrator enabled={narrationEnabled} />
+              )}
+            </aside>
+          </>
+        )}
       </main>
+
+      {isMobileSize && (
+        <nav className="mobile-nav">
+          <button className={`mobile-nav-btn ${mobileView === 'quest' ? 'active' : ''}`} onClick={() => setMobileView('quest')}>📜 Quests</button>
+          <button className={`mobile-nav-btn ${mobileView === 'terminal' ? 'active' : ''}`} onClick={() => setMobileView('terminal')}>💬 Chat</button>
+          <button className={`mobile-nav-btn ${mobileView === 'character' ? 'active' : ''}`} onClick={() => setMobileView('character')}>👤 Character</button>
+        </nav>
+      )}
 
       {/* Console error display - shows Rust errors in the terminal area */}
       {showConsoleError && (

@@ -3,9 +3,16 @@ import cors from 'cors'
 import path from 'path'
 import fs from 'fs'
 import { fileURLToPath } from 'url'
+import dotenv from 'dotenv'
+
+process.on('warning', (warning) => {
+  if (warning.name === 'DeprecationWarning' && warning.code === 'DEP0060') return
+})
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname  = path.dirname(__filename)
+
+dotenv.config({ path: path.resolve(__dirname, '../.env') })
 const app        = express()
 const PORT       = 3001
 
@@ -18,7 +25,7 @@ app.use(cors())
 app.use(express.json())
 
 const HF_API = 'https://api-inference.huggingface.co/models'
-const TOKEN = process.env.VITE_HF_API_KEY ?? process.env.HF_API_KEY ?? ''
+const TOKEN = process.env.HF_TOKEN ?? ''
 
 app.post('/api/tts', async (req: Request, res: Response) => {
   const { model, text } = req.body as { model?: string; text?: string }

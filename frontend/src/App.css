@@ -1,4 +1,4 @@
-/* ── App.css — Beggars to Crowns Frontend ──────────────────────────────────── */
+/* ── App.css — AI RPG Frontend ─────────────────────────────────────────────── */
 /* Aesthetic: Manuscript-on-vellum meets cathode-ray terminal.                  */
 /* Dark stone background, aged gold accents, bleeding-ink text, scanline glow.  */
 
@@ -78,6 +78,10 @@ html, body, #root {
   grid-template-columns: 1fr;
   height: 100vh;
   overflow: hidden;
+}
+
+.app.has-mobile-nav {
+  grid-template-rows: 44px auto 1fr 32px 52px;
 }
 
 /* ── Topbar ─────────────────────────────────────────────────────────────────── */
@@ -1272,6 +1276,23 @@ html, body, #root {
   color: var(--green-bright);
 }
 
+.title-logout-btn {
+  margin-left: 12px;
+  padding: 4px 10px;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text-dim);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  cursor: pointer;
+}
+
+.title-logout-btn:hover {
+  border-color: var(--red-bright);
+  color: var(--red-bright);
+}
+
 .title-login-widget {
   display: flex;
   flex-direction: column;
@@ -1317,4 +1338,89 @@ html, body, #root {
   font-family: var(--font-mono);
   font-size: 10px;
   color: var(--text-dim);
+}
+
+/* ── Mobile Navigation ─────────────────────────────────────────────── */
+.mobile-nav {
+  display: none;
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 52px;
+  background: var(--bg-panel);
+  border-top: 1px solid var(--border);
+  justify-content: space-around;
+  align-items: center;
+  z-index: 50;
+  padding-bottom: env(safe-area-inset-bottom, 0);
+}
+
+.mobile-nav-btn {
+  flex: 1;
+  background: transparent;
+  border: none;
+  color: var(--text-dim);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  padding: 8px 4px;
+  cursor: pointer;
+  text-align: center;
+}
+
+.mobile-nav-btn.active {
+  color: var(--gold);
+}
+
+/* Mobile layout */
+.layout-mobile {
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - 44px - 32px - 52px);
+  overflow: hidden;
+}
+
+.col-mobile {
+  flex: 1;
+  overflow-y: auto;
+  border: none;
+}
+
+/* Hide radio/narrator on mobile - they're in character view */
+.layout-mobile ~ .ambient-radio,
+.layout-mobile ~ .narrator-panel {
+  display: none;
+}
+
+/* Mobile title screen */
+@media (max-width: 767px) {
+  .title-screen-inner {
+    padding: 24px 16px;
+    gap: 12px;
+  }
+
+  .title-crown {
+    font-size: 48px;
+  }
+
+  .title-name {
+    font-size: 24px;
+  }
+
+  .title-buttons {
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .title-btn {
+    padding: 12px 16px;
+    font-size: 13px;
+  }
+}
+
+/* Prevent zoom on input focus */
+@media (max-width: 767px) {
+  input, textarea, select {
+    font-size: 16px;
+  }
 }

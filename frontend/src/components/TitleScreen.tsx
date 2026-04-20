@@ -1,15 +1,16 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 
 interface Props {
   googlePlayUser: { id: string; name: string } | null
   onGooglePlayLogin: (user: { id: string; name: string }) => void
+  onGoogleLogout: () => void
   onGuestPlay: () => void
   saveSlots: Array<{ slot: number; hasData: boolean }>
   onLoadSlot: (slot: number) => void
   onStartNew: () => void
 }
 
-const GOOGLE_CLIENT_ID = 'YOUR_GOOGLE_PLAY_CLIENT_ID.apps.googleusercontent.com'
+const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || ''
 
 declare global {
   interface Window {
@@ -27,9 +28,23 @@ declare global {
   }
 }
 
-export function TitleScreen({ googlePlayUser, onGooglePlayLogin, onGuestPlay, saveSlots, onLoadSlot, onStartNew }: Props) {
+async function getGoogleUserInfo(accessToken: string): Promise<string> {
+  try {
+    const res = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+      headers: { Authorization: `Bearer ${accessToken}` }
+    })
+    if (res.ok) {
+      const data = await res.json()
+      return data.name || data.email?.split('@')[0] || 'Player'
+    }
+  } catch {}
+  return 'Player'
+}
+
+export function TitleScreen({ googlePlayUser, onGooglePlayLogin, onGoogleLogout, onGuestPlay, saveSlots, onLoadSlot, onStartNew }: Props) {
   const [isLoadingGoogle, setIsLoadingGoogle] = useState(false)
   const [showLoginError, setShowLoginError] = useState(false)
+  const [userName, setUserName] = useState('Player')
 
   useEffect(() => {
     const script = document.createElement('script')
@@ -39,40 +54,63 @@ export function TitleScreen({ googlePlayUser, onGooglePlayLogin, onGuestPlay, sa
     document.body.appendChild(script)
   }, [])
 
-  const handleGoogleLogin = () => {
+  useEffect(() => {
+    if (googlePlayUser?.name && googlePlayUser.name !== 'Player') {
+      setUserName(googlePlayUser.name)
+    } else if (googlePlayUser?.id) {
+      getGoogleUserInfo(googlePlayUser.id).then(name => {
+        setUserName(name)
+        onGooglePlayLogin({ ...googlePlayUser, name })
+      })
+    }
+  }, [googlePlayUser])
+
+  const handleGoogleLogin = useCallback(() => {
     setIsLoadingGoogle(true)
     setShowLoginError(false)
 
     const client = window.google?.accounts?.oauth2?.initTokenClient({
       client_id: GOOGLE_CLIENT_ID,
-      scope: 'https://www.googleapis.com/auth/games',
-      callback: (response) => {
-        setIsLoadingGoogle(false)
+      scope: 'openid email profile https://www.googleapis.com/auth/games',
+      callback: async (response) => {
         if (response.access_token) {
+          const name = await getGoogleUserInfo(response.access_token)
           onGooglePlayLogin({
-            id: response.access_token.substring(0, 20),
-            name: 'Player'
+            id: response.access_token,
+            name
           })
-        } else if (response.error) {
+        } else {
           setShowLoginError(true)
         }
+        setIsLoadingGoogle(false)
       }
     })
-    client?.requestAccessToken()
-  }
+
+    if (client) {
+      client.requestAccessToken()
+    } else {
+      setIsLoadingGoogle(false)
+      setShowLoginError(true)
+    }
+
+    setTimeout(() => {
+      if (isLoadingGoogle) {
+        setIsLoadingGoogle(false)
+      }
+    }, 5000)
+  }, [onGooglePlayLogin])
 
   return (
     <div className="title-screen">
       <div className="title-screen-inner">
         <div className="title-crown">♛</div>
         <h1 className="title-name">AI RPG</h1>
-        <p className="title-subtitle">Beggars to Crowns</p>
 
         <div className="title-buttons">
           <button className="title-btn title-btn--secondary" onClick={onGuestPlay}>
             Play as Guest
           </button>
-          
+
           {googlePlayUser ? (
             <>
               {saveSlots.map(slot => (
@@ -86,7 +124,11 @@ export function TitleScreen({ googlePlayUser, onGooglePlayLogin, onGuestPlay, sa
               ))}
             </>
           ) : (
-            <button className="title-btn title-btn--secondary" onClick={handleGoogleLogin} disabled={isLoadingGoogle}>
+            <button
+              className="title-btn title-btn--secondary"
+              onClick={handleGoogleLogin}
+              disabled={isLoadingGoogle}
+            >
               {isLoadingGoogle ? 'Signing in...' : 'Sign in with Google'}
             </button>
           )}
@@ -96,11 +138,12 @@ export function TitleScreen({ googlePlayUser, onGooglePlayLogin, onGuestPlay, sa
           {googlePlayUser ? (
             <div className="title-user-info">
               <span className="title-user-badge">✓</span>
-              Signed in as {googlePlayUser.name}
+              Welcome, {userName}!
+              <button className="title-logout-btn" onClick={onGoogleLogout}>Logout</button>
             </div>
           ) : (
             showLoginError && (
-              <p className="title-login-error">Failed to sign in. Please try again.</p>
+              <p className="title-login-error">Sign in failed. Click to try again.</p>
             )
           )}
         </div>

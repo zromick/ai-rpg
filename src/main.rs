@@ -865,9 +865,9 @@ fn game_loop(client: &Client, key: &str, gs: &mut GameState, sessions: &mut Hash
 
 fn main() {
     dotenv().ok();
-    let key = match std::env::var("HF_API_TOKEN") {
-        Ok(k) if !k.is_empty() => { eprintln!("[game] HF_API_TOKEN loaded."); k }
-        _ => { eprint!("HF_API_TOKEN not set. Enter key: "); io::stdout().flush().unwrap(); read_line("") }
+    let key = match std::env::var("HF_TOKEN") {
+        Ok(k) if !k.is_empty() => { eprintln!("[game] HF_TOKEN loaded."); k }
+        _ => { eprint!("HF_TOKEN not set. Enter key: "); io::stdout().flush().unwrap(); read_line("") }
     };
     let client = Client::builder().timeout(Duration::from_secs(180)).build().unwrap();
     // Clear files from any previous session

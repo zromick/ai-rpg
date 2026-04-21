@@ -28,7 +28,6 @@ export default function App() {
   const [selectedPlayer, setSelectedPlayer]     = useState('')
   const [imageService, setImageService]     = useState<ImageService>(getService(DEFAULT_SERVICE_ID))
   const [showSettings, setShowSettings]     = useState(false)
-  const [confirmAction, _setConfirmAction] = useState<'restart' | 'title' | null>(null)
   const [showSplash, setShowSplash] = useState(false)
   const [showTitle, setShowTitle] = useState(true)
   const [mobileView, setMobileView] = useState<'quest' | 'terminal' | 'character'>('terminal')
@@ -204,21 +203,17 @@ const MODEL_BY_ID: Record<string, string> = {
 
   const handleSettingsApply = useCallback(async (update: { model?: string; common_rules?: Array<{ active: boolean; current_level: number }>; scenario_rules?: boolean[] }) => {
     if (update.common_rules) {
-      // Apply theme change immediately to body class
       const newThemeRule = update.common_rules.find(r => r.current_level !== undefined)
       if (newThemeRule) {
         const idx = newThemeRule.current_level - 1
         document.body.className = ['theme-classic', 'theme-forest', 'theme-ocean', 'theme-crimson', 'theme-space'][idx] || 'theme-classic'
       }
     }
-    // Normalize the model ID before sending to backend
     let normalizedUpdate = { ...update }
     if (update.model) {
       normalizedUpdate = { ...update, model: normalizeModel(update.model) }
     }
-    console.log('handleSettingsApply sending:', normalizedUpdate)
-    const ok = await sendCommand(FAKE_SETUP_PLAYER, `__settings_update__ ${JSON.stringify(normalizedUpdate)}`)
-    console.log('handleSettingsApply result:', ok)
+    await sendCommand(FAKE_SETUP_PLAYER, `__settings_update__ ${JSON.stringify(normalizedUpdate)}`)
   }, [sendCommand])
 
   const handleOpenSettings = useCallback(() => {
@@ -250,8 +245,6 @@ const MODEL_BY_ID: Record<string, string> = {
     setShowTitle(true)
   }, [currentSlot])
 
-  void handleDeleteSlot // Used by TitleScreen
-
   const handleDelete = useCallback(async () => {
     const key = `ai_rpg_save_slot_${currentSlot}`
     localStorage.removeItem(key)
@@ -270,10 +263,6 @@ const MODEL_BY_ID: Record<string, string> = {
       setSelectedPlayer('')
     }
   }, [sendCommand, gameState, selectedPlayer])
-
-  // confirmAction kept for potential future use in confirm dialogs
-  const _confirmAction = confirmAction
-  void _confirmAction
 
   // ── Splash: always show first when loading ──────────────────────────────────────────────
   if (showSplash) {
@@ -351,7 +340,7 @@ const MODEL_BY_ID: Record<string, string> = {
             if (saved) {
               const parsed = JSON.parse(saved)
               if (parsed.gameState) {
-                console.log('Loaded from slot', slot)
+                
                 await fetch('/api/restore', {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
@@ -429,7 +418,7 @@ const MODEL_BY_ID: Record<string, string> = {
             if (saved) {
               const parsed = JSON.parse(saved)
               if (parsed.gameState) {
-                console.log('Loaded from slot', slot)
+                
                 await fetch('/api/restore', {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },

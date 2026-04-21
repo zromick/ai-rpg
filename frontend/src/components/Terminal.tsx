@@ -144,7 +144,6 @@ export function Terminal({ history, playerName, isActive, mainQuest, sideQuests,
     else if (c === 'locations' || c === 'locs' || c === 'map')
       pushLocal(locations.length === 0 ? '🗺 LOCATIONS\n(none yet)' : `🗺 LOCATIONS\n${locations.map(l=>`• ${l.name} (turn ${l.last_visited})\n  ${l.description}`).join('\n')}`)
     else if (c === 'settings' || c === 'se') {
-      console.log('settings/se command triggered, calling onOpenSettings')
       onOpenSettings()
       return true
     }
@@ -176,7 +175,6 @@ export function Terminal({ history, playerName, isActive, mainQuest, sideQuests,
 
   async function handleSubmit() {
     const text = val.trim()
-    console.log('handleSubmit called with:', text)
     if (!text || sending || isGameLoading) return
     if (isGameLoading) {
       pushLocal('Loading game... please wait')
@@ -187,14 +185,11 @@ export function Terminal({ history, playerName, isActive, mainQuest, sideQuests,
     setVal('')
     if (confirmAction) { handleConfirm(text); return }
     if (resolveLocal(text)) {
-      console.log('resolveLocal returned true')
       return
     }
-    console.log('Calling sendCommand with:', playerName, text)
     setSending(true)
     setExtra(prev => [...prev, { kind: 'pending', content: text, afterIndex: history.length }])
     const ok = await sendCommand(playerName, text)
-    console.log('sendCommand result:', ok)
     setSending(false)
     if (!ok) pushLocal('⚠ Send failed — is the bridge server running?')
   }

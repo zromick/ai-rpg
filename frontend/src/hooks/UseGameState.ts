@@ -88,12 +88,10 @@ export function useGameState() {
   }, [gameState])
 
   const sendCommand = useCallback(async (player: string, text: string): Promise<boolean> => {
-    console.log('sendCommand called:', player, text)
     pendingCommand.current = true
     lastErrorCheck.current = Date.now()
     try {
       const response = await fetch('/api/command', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ player, text }) })
-      console.log('sendCommand response:', response.ok, response.status)
       if (response.ok) {
         setTimeout(async () => {
           try {
@@ -110,7 +108,6 @@ export function useGameState() {
       }
       return response.ok
     } catch (e) { 
-      console.log('sendCommand error:', e)
       return false 
     }
   }, [])

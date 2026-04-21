@@ -122,6 +122,8 @@ pub struct WorldState {
     pub current_nickname: Option<String>,
     #[serde(default)]
     pub battle_mode: bool,
+    #[serde(default)]
+    pub romance_mode: bool,
     pub turn: u64,
 }
 
@@ -281,6 +283,7 @@ fn write_state(gs: &GameState, sessions: &HashMap<String, PlayerSession>, active
             "nicknames": s.world.nicknames,
             "current_nickname": s.world.current_nickname,
             "battle_mode": s.world.battle_mode,
+            "romance_mode": s.world.romance_mode,
             "turn": s.world.turn,
             "history": s.history.iter().filter(|m| m.role != "system").collect::<Vec<_>>(),
         })
@@ -366,12 +369,13 @@ Produce this exact JSON (all fields required, use the exact field names shown):
   "clothing_update": "new clothing description" or null,
   "new_nickname": "any nickname or title the player earns (e.g., 'the Brave', 'Cora Brightblade', 'Captain')" or null,
   "completed_quest_step": "number (1-indexed) of quest step completed, or null if none" or null,
-  "battle_mode": true or false
+  "battle_mode": true or false,
+  "romance_mode": true or false
 }}
 
 Critical rules:
   1. COPY ALL existing entries from current arrays unless they explicitly changed.
-  2. ADD any new characters mentioned BY NAME in the GM response (guards, merchants, named NPCs, animals with roles). EXCLUDE the word "You" — do NOT add it as a character.
+  2. ADD any new characters mentioned BY NAME in the GM response (guards, merchants, named NPCs, animals with roles). EXCLUDE the words "You" and "the" — do NOT add them as a character.
   3. ADD the current location if it can be identified from context.
   4. last_visited must be the integer {turn}, not a string.
   5. current_datetime: Estimate the new in-game time based on time passing in the narrative. Advance time realistically — typically 15-60 minutes per action, more if resting/traveling. If time crosses midnight, advance the date. Format: '7 August 1200, 11:45 PM'.
@@ -416,8 +420,10 @@ Critical rules:
                     let game_won  = v["game_won"].as_bool().unwrap_or(false);
                     let new_nickname = v["new_nickname"].as_str().filter(|s| !s.trim().is_empty() && *s != "null").map(str::to_string);
                     let completed_step = v["completed_quest_step"].as_u64().map(|n| n as u32);
-                    let battle_mode = v["battle_mode"].as_bool().unwrap_or(false);
-                    let mut new_world = WorldState { inventory: new_inv, side_characters: new_chars, locations: new_locs, current_location: curr_loc, current_datetime: curr_time, turn: world.turn+1, battle_mode, ..Default::default() };
+                    // Only set modes to true if explicitly returned as true - preserve existing if not specified
+                    let battle_mode = v["battle_mode"].as_bool().unwrap_or(world.battle_mode);
+                    let romance_mode = v["romance_mode"].as_bool().unwrap_or(world.romance_mode);
+                    let mut new_world = WorldState { inventory: new_inv, side_characters: new_chars, locations: new_locs, current_location: curr_loc, current_datetime: curr_time, turn: world.turn+1, battle_mode, romance_mode, ..Default::default() };
                     new_world.start_datetime = world.start_datetime.clone();
                     if let Some(nn) = new_nickname {
                         if !nn.is_empty() && !world.nicknames.contains(&nn) {
@@ -522,6 +528,27 @@ fn build_game_from_setup(payload: &SetupPayload, key: &str, client: &Client) -> 
         if let Some(entry) = rule_set.entries.get_mut(i) {
             entry.active        = input.active;
             entry.current_level = input.current_level;
+        }
+    }
+
+    // Set Theme based on scenario
+    let scenario_title_lower = story.title.to_lowercase();
+    let default_theme = if scenario_title_lower.contains("void") || scenario_title_lower.contains("merchant") || scenario_title_lower.contains("space") {
+        5 // Space theme
+    } else if scenario_title_lower.contains("debt collector") || scenario_title_lower.contains("cursed relic") || scenario_title_lower.contains("assassin") || scenario_title_lower.contains("forgotten temple") || scenario_title_lower.contains("haunted") {
+        4 // Crimson theme
+    } else if scenario_title_lower.contains("shipwreck") || scenario_title_lower.contains("veteran") || scenario_title_lower.contains("double agent") || scenario_title_lower.contains("obsidian") {
+        3 // Ocean theme
+    } else if scenario_title_lower.contains("grain") || scenario_title_lower.contains("poison") || scenario_title_lower.contains("forest") {
+        2 // Forest theme
+    } else {
+        1 // Classic theme (default)
+    };
+
+    // Update Theme rule to scenario default if not explicitly set by user
+    for entry in rule_set.entries.iter_mut() {
+        if entry.label == "Theme" && entry.current_level == 1 {
+            entry.current_level = default_theme;
         }
     }
 

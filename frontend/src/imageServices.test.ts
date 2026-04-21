@@ -5,7 +5,7 @@ global.fetch = vi.fn()
 global.URL = {
   createObjectURL: vi.fn(() => 'blob:test-url'),
   revokeObjectURL: vi.fn(),
-}
+} as any
 
 describe('IMAGE_SERVICES', () => {
   it('should be a non-empty array', () => {
@@ -146,7 +146,7 @@ describe('getService', () => {
       const service = getService('hf_flux_schnell')
       await service.fetchImage('A knight', 123)
 
-      const [url, options] = global.fetch.mock.calls[0]
+      const [url, options] = (global.fetch as any).mock.calls[0]
       expect(url).toBe('/api/image')
       expect(options.method).toBe('POST')
       expect(options.headers['Content-Type']).toBe('application/json')
@@ -169,7 +169,7 @@ describe('getService', () => {
       const service = getService('hf_flux_schnell')
       await service.fetchImage('Dragon', 42)
 
-      const [, options] = global.fetch.mock.calls[0]
+      const [, options] = (global.fetch as any).mock.calls[0]
       const body = JSON.parse(options.body)
       expect(body.prompt).toContain('Dragon')
       expect(body.prompt).toContain('medieval fantasy')
@@ -211,7 +211,7 @@ describe('getService', () => {
       const service = getService('hf_portrait')
       await service.fetchImage('Face', 1)
 
-      const [, options] = global.fetch.mock.calls[0]
+      const [, options] = (global.fetch as any).mock.calls[0]
       const body = JSON.parse(options.body)
       expect(body.width).toBe(512)
       expect(body.height).toBe(640)
@@ -227,7 +227,7 @@ describe('getService', () => {
       const service = getService('hf_widescreen')
       await service.fetchImage('Landscape', 1)
 
-      const [, options] = global.fetch.mock.calls[0]
+      const [, options] = (global.fetch as any).mock.calls[0]
       const body = JSON.parse(options.body)
       expect(body.width).toBe(1024)
       expect(body.height).toBe(512)

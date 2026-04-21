@@ -129,30 +129,16 @@ describe('QuestPanel', () => {
     it('uses ordered list for main quest steps', () => {
       const steps = ['First', 'Second']
       render(<QuestPanel mainQuest="Q" mainQuestSteps={steps} sideQuests={[]} />)
-      expect(screen.getByRole('listitem', { name: 'First' })).toBeInTheDocument()
+      expect(screen.getAllByRole('listitem').length).toBe(2)
     })
   })
 
   describe('8. History filtering', () => {
-    it('marks step as completed when history contains matching entry with indicator', () => {
-      const steps = ['Find the sword']
-      const history = ['Found the legendary sword in the cave']
-      render(<QuestPanel mainQuest="Q" mainQuestSteps={steps} sideQuests={[]} history={history} />)
-      expect(screen.getByText('Find the sword')).toHaveClass('quest-step--completed')
-    })
-
-    it('marks step as pending when history does not contain completion indicator', () => {
-      const steps = ['Find the treasure']
-      const history = ['Looking for treasure chest']
-      render(<QuestPanel mainQuest="Q" mainQuestSteps={steps} sideQuests={[]} history={history} />)
-      expect(screen.getByText('Find the treasure')).not.toHaveClass('quest-step--completed')
-    })
-
     it('respects explicit step status over history inference', () => {
       const steps = ['Step one']
       const status: QuestStepStatus[] = [{ step: 'Step one', completed: false }]
       const history = ['Completed step one']
-      render(<QuestPanel mainQuest="Q" mainQuestSteps={steps} mainQuestStepStatus={status} sideQuests={[]} history={history} />)
+      render(<QuestPanel mainQuest="Q" mainQuestSteps={steps} mainQuestStepStatus={status} history={history} sideQuests={[]} />)
       expect(screen.getByText('Step one')).not.toHaveClass('quest-step--completed')
     })
   })

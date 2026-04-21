@@ -472,12 +472,12 @@ onStartNew={handleStartNew}
   // ── Setup wizard ──────────────────────────────────────────────────────────
   // Only show stepper if we haven't just restored a game, or if starting new game as guest
   // Don't show stepper when loading a save - wait for gameState to load from backend
-  const hasSetupData = setupState && setupState.phase === 'waiting' && setupState.data
+  const hasSetupData = !!(setupState && setupState.phase === 'waiting' && setupState.data)
   const showSetupWizard = !justRestored && !gameState && (hasSetupData || startNewGame)
   if (showSetupWizard) {
     return (
       <div className="setup-page">
-        <SetupWizard data={hasSetupData ? setupState!.data : null} onSubmit={handleSetupSubmit} onTitle={handleTitleFromSetup} />
+        <SetupWizard data={setupState!.data} onSubmit={handleSetupSubmit} onTitle={handleTitleFromSetup} />
       </div>
     )
   }

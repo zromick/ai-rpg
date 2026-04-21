@@ -44,7 +44,7 @@ async function getGoogleUserInfo(accessToken: string): Promise<string> {
   return 'Player'
 }
 
-export function TitleScreen({ googlePlayUser, googleDisplayName, onGooglePlayLogin, onGoogleLogout, onGuestPlay, saveSlots, onLoadSlot, onStartNew, onDeleteSlot, onDeleteAllSlots }: Props) {
+export function TitleScreen({ googlePlayUser, googleDisplayName, onGooglePlayLogin, onGoogleLogout, onGuestPlay, saveSlots, onLoadSlot, onStartNew, onDeleteAllSlots }: Props) {
   const [isLoadingGoogle, setIsLoadingGoogle] = useState(false)
   const [showLoginError, setShowLoginError] = useState(false)
   const [deleteConfirm, setDeleteConfirm] = useState(false)

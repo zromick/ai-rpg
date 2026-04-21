@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { NARRATION_SERVICES, getNarrationService, DEFAULT_NARRATION_SERVICE_ID } from '../narrationService'
+import { NARRATION_SERVICES, getNarrationService } from '../narrationService'
 
 const createMockBlob = () => new Blob(['audio'], { type: 'audio/wav' })
 
@@ -52,7 +52,6 @@ describe('Narrator', () => {
         blob: vi.fn().mockResolvedValue(mockBlob),
       })
 
-      const enabled = true
       const lastGMRply = 'GM reply text'
       
       const service = getNarrationService('speecht5')
@@ -71,7 +70,7 @@ describe('Narrator', () => {
       })
 
       const service = getNarrationService('speecht5')
-      const firstResult = await service.fetchAudio('Same reply')
+      await service.fetchAudio('Same reply')
       
       const lastNarratedRef = { current: 'Same reply' }
       const shouldNotNarrate = lastNarratedRef.current === 'Same reply'
@@ -296,7 +295,7 @@ describe('Narrator', () => {
       const service = getNarrationService('speecht5')
       await service.fetchAudio('Test text')
 
-      const callArgs = global.fetch.mock.calls[0]
+      const callArgs = (global.fetch as any).mock.calls[0]
       const body = JSON.parse(callArgs[1].body)
       expect(body.model).toBe('microsoft/speecht5_tts')
       expect(body.text).toBe('Test text')
@@ -312,7 +311,7 @@ describe('Narrator', () => {
       const service = getNarrationService('mms_tts_eng')
       await service.fetchAudio('Test text')
 
-      const callArgs = global.fetch.mock.calls[0]
+      const callArgs = (global.fetch as any).mock.calls[0]
       const body = JSON.parse(callArgs[1].body)
       expect(body.model).toBe('facebook/mms-tts-eng')
       expect(body.text).toBe('Test text')
@@ -328,7 +327,7 @@ describe('Narrator', () => {
       const service = getNarrationService('bark_small')
       await service.fetchAudio('Test text')
 
-      const callArgs = global.fetch.mock.calls[0]
+      const callArgs = (global.fetch as any).mock.calls[0]
       const body = JSON.parse(callArgs[1].body)
       expect(body.model).toBe('suno/bark-small')
       expect(body.text).toBe('Test text')
@@ -344,7 +343,7 @@ describe('Narrator', () => {
       const service = getNarrationService('espnet_vits')
       await service.fetchAudio('Test text')
 
-      const callArgs = global.fetch.mock.calls[0]
+      const callArgs = (global.fetch as any).mock.calls[0]
       const body = JSON.parse(callArgs[1].body)
       expect(body.model).toBe('espnet/kan-bayashi_ljspeech_vits')
       expect(body.text).toBe('Test text')

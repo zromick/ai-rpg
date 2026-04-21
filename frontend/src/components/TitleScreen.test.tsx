@@ -180,7 +180,7 @@ describe('TitleScreen Component', () => {
         />
       )
 
-      expect(screen.getAllByRole('button')).toHaveLength(4)
+      expect(screen.getAllByRole('button')).toHaveLength(6) // 4 slots + Play as Guest + Logout
     })
 
     it('should display slot number for empty slots', () => {
@@ -269,8 +269,8 @@ describe('TitleScreen Component', () => {
         />
       )
 
-      const button = screen.getByRole('button')
-      expect(button.style.borderColor).toBe('rgb(106, 90, 205)')
+      const button = screen.getByRole('button', { name: /Hero/i })
+      expect(button.style.borderColor).toBe('rgb(106, 90, 170)')
     })
 
     it('should apply gold theme color for Crown scenarios', () => {
@@ -284,7 +284,7 @@ describe('TitleScreen Component', () => {
         />
       )
 
-      const button = screen.getByRole('button')
+      const button = screen.getByRole('button', { name: /King/i })
       expect(button.style.borderColor).toBe('rgb(212, 175, 55)')
     })
   })

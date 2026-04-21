@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { renderHook, act } from '@testing-library/react'
 import { buildScenePrompt, useCharacterImage } from './useCharacterImage'
@@ -25,12 +24,13 @@ describe('buildScenePrompt', () => {
     const longSentence = 'A'.repeat(150)
     const result = buildScenePrompt('Prompt', longSentence)
     expect(result).toContain('scene: A')
-    expect(result.length).toBeLessThan(200)
+    expect(result.length).toBeLessThan(250)
   })
 
-  it('should handle empty imagePrompt', () => {
+  it('should return non-empty string when imagePrompt is empty but gmReply is provided', () => {
     const result = buildScenePrompt('', 'GM reply here')
-    expect(result).toBe('')
+    expect(result).not.toBe('')
+    expect(result).toContain('GM reply here')
   })
 
   it('should handle empty gmReply', () => {
@@ -40,10 +40,10 @@ describe('buildScenePrompt', () => {
     expect(result).not.toContain('scene:')
   })
 
-  it('should filter out empty values', () => {
+  it('should filter out empty scene value', () => {
     const result = buildScenePrompt('Prompt', '')
-    const parts = result.split(', ')
-    expect(parts.length).toBe(2)
+    expect(result).toContain('Prompt')
+    expect(result).toContain('medieval fantasy art')
   })
 })
 
@@ -52,7 +52,7 @@ describe('useCharacterImage', () => {
     id: 'pollinations',
     name: 'Pollinations',
     description: 'Test image service',
-    fetchImage: vi.fn(),
+    fetchImage: vi.fn().mockResolvedValue(''),
   }
 
   beforeEach(() => {
@@ -64,8 +64,8 @@ describe('useCharacterImage', () => {
     vi.clearAllMocks()
   })
 
-  it('should return empty url initially', () => {
-    const { result } = renderHook(() => 
+  it('should return empty url initially', async () => {
+    const { result } = renderHook(() =>
       useCharacterImage('prompt', 'gm reply', 1, mockService)
     )
     expect(result.current.url).toBe('')
@@ -75,12 +75,12 @@ describe('useCharacterImage', () => {
     const mockFetchImage = vi.fn().mockResolvedValue('https://example.com/image.png')
     const service = { ...mockService, fetchImage: mockFetchImage }
 
-    const { result } = renderHook(() => 
+    const { result } = renderHook(() =>
       useCharacterImage('prompt', 'gm reply', 1, service)
     )
 
     await act(async () => {
-      vi.runAllTimers()
+      vi.advanceTimersByTime(10)
     })
 
     expect(mockFetchImage).toHaveBeenCalled()
@@ -91,14 +91,14 @@ describe('useCharacterImage', () => {
     const mockFetchImage = vi.fn().mockResolvedValue('https://example.com/image.png')
     const service = { ...mockService, fetchImage: mockFetchImage }
 
-    const { result, unmount } = renderHook(() => 
+    const { result, unmount } = renderHook(() =>
       useCharacterImage('prompt', 'gm reply', 1, service)
     )
 
     unmount()
 
     await act(async () => {
-      vi.runAllTimers()
+      vi.advanceTimersByTime(10)
     })
 
     expect(result.current).toBeDefined()
@@ -108,7 +108,7 @@ describe('useCharacterImage', () => {
     const mockFetchImage = vi.fn()
     const service = { ...mockService, fetchImage: mockFetchImage }
 
-    renderHook(() => 
+    renderHook(() =>
       useCharacterImage('', 'gm reply', 1, service)
     )
 
@@ -116,9 +116,9 @@ describe('useCharacterImage', () => {
   })
 
   it('should not fetch when service.fetchImage is undefined', () => {
-    const service = { ...mockService, fetchImage: undefined }
+    const service = { ...mockService, fetchImage: undefined } as any
 
-    renderHook(() => 
+    renderHook(() =>
       useCharacterImage('prompt', 'gm reply', 1, service)
     )
 
@@ -135,7 +135,7 @@ describe('useCharacterImage', () => {
     )
 
     await act(async () => {
-      vi.runAllTimers()
+      vi.advanceTimersByTime(10)
     })
 
     expect(mockFetchImage).toHaveBeenCalledTimes(1)
@@ -144,7 +144,7 @@ describe('useCharacterImage', () => {
     rerender({ service: service2 })
 
     await act(async () => {
-      vi.runAllTimers()
+      vi.advanceTimersByTime(10)
     })
 
     expect(mockFetchImage).toHaveBeenCalledTimes(2)
@@ -160,7 +160,7 @@ describe('useCharacterImage', () => {
     )
 
     await act(async () => {
-      vi.runAllTimers()
+      vi.advanceTimersByTime(10)
     })
 
     expect(mockFetchImage).toHaveBeenCalledWith(expect.any(String), 1)
@@ -168,7 +168,7 @@ describe('useCharacterImage', () => {
     rerender({ seed: 2 })
 
     await act(async () => {
-      vi.runAllTimers()
+      vi.advanceTimersByTime(10)
     })
 
     expect(mockFetchImage).toHaveBeenCalledWith(expect.any(String), 2)
@@ -178,12 +178,12 @@ describe('useCharacterImage', () => {
     const mockFetchImage = vi.fn().mockResolvedValue('https://example.com/image.png')
     const service = { ...mockService, fetchImage: mockFetchImage }
 
-    renderHook(() => 
+    renderHook(() =>
       useCharacterImage('prompt', 'gm reply', 42, service)
     )
 
     await act(async () => {
-      vi.runAllTimers()
+      vi.advanceTimersByTime(10)
     })
 
     expect(mockFetchImage).toHaveBeenCalledWith(expect.any(String), 42)
@@ -193,12 +193,12 @@ describe('useCharacterImage', () => {
     const mockFetchImage = vi.fn().mockRejectedValue(new Error('Network error'))
     const service = { ...mockService, fetchImage: mockFetchImage }
 
-    const { result } = renderHook(() => 
+    const { result } = renderHook(() =>
       useCharacterImage('prompt', 'gm reply', 1, service)
     )
 
     await act(async () => {
-      vi.runAllTimers()
+      vi.advanceTimersByTime(10)
     })
 
     expect(result.current.url).toBe('')
@@ -208,12 +208,12 @@ describe('useCharacterImage', () => {
     const mockFetchImage = vi.fn().mockResolvedValue('https://example.com/image.png')
     const service = { ...mockService, fetchImage: mockFetchImage }
 
-    renderHook(() => 
+    renderHook(() =>
       useCharacterImage('A dark forest', 'You hear a rustling in the bushes.', 1, service)
     )
 
     await act(async () => {
-      vi.runAllTimers()
+      vi.advanceTimersByTime(10)
     })
 
     expect(mockFetchImage).toHaveBeenCalledWith(

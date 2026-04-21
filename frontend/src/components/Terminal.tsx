@@ -10,7 +10,7 @@ const LOCAL_CMDS = new Set([
   'npcs','n','characters','chars',
   'locations','locs','map',
   'settings','se',
-  'help','?',
+  'help','?','h',
   'title','t',
   'restart','r',
   'delete','del',
@@ -106,7 +106,11 @@ export function Terminal({ history, playerName, isActive, mainQuest, sideQuests,
   }
 
   function resolveLocal(cmd: string): boolean {
-    const c = cmd.trim().toLowerCase()
+    let c = cmd.trim().toLowerCase()
+    // Remove leading slash if present
+    if (c.startsWith('/')) {
+      c = c.slice(1)
+    }
     if (c === 'title' || c === 't') {
       setConfirmAction('title')
       return true
@@ -146,8 +150,8 @@ export function Terminal({ history, playerName, isActive, mainQuest, sideQuests,
     }
     else if (c === 'delete' || c === 'del')
       setConfirmAction('delete')
-    else if (c === 'help' || c === '?')
-      pushLocal('COMMANDS\n  quest/q         — main quest\n  sidequests/sq   — side quests\n  inventory/inv   — your items\n  npcs/n          — people met\n  locations/map   — places visited\n  stats/s         — prompt counts\n  settings/se     — view/edit GM rules\n  restart/r       — restart your game\n  delete/del      — delete character and save\n  title/t         — return to title')
+    else if (c === 'help' || c === '?' || c === 'h')
+      pushLocal('COMMANDS\n  quest/q         — main quest\n  sidequests/sq   — side quests\n  inventory/inv   — your items\n  npcs/n          — people met\n  locations/map   — places visited\n  stats/s         — prompt counts\n  settings/se     — view/edit GM rules\n  restart/r       — restart your game\n  delete/del      — delete character and save\n  title/t         — return to title\n  h/?             — show this help')
     return true
   }
 

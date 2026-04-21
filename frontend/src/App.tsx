@@ -12,6 +12,7 @@ import { useGameState } from './hooks/UseGameState'
 import { SetupPayload, SetupWizard } from './components/SetupWizard'
 import { TitleScreen } from './components/TitleScreen'
 import { SplashScreen } from './components/SplashScreen'
+import { MultiWindowGuard } from './components/MultiWindowGuard'
 
 const SAVE_SLOT_KEY = 'ai_rpg_save_slot_1'
 const MOBILE_BREAKPOINT = 768
@@ -61,11 +62,15 @@ const MODEL_BY_ID: Record<string, string> = {
 
   function normalizeModel(m: string): string {
     if (!m) return m
+    // Convert 'meta-llama/Llama-3.1-8B-Instruct' to 'meta-llama/llama-3.1-8b-instruct' for lookup
     const lower = m.toLowerCase()
+    // Look up in our mapping to get the normalized version
     if (MODEL_BY_ID[lower]) return MODEL_BY_ID[lower]
-    if (m === m.toUpperCase() && m.includes('/')) return m
+    // Already normalized (e.g. 'google/gemma-2-9b-it')
+    if (m.includes('/') && !m.includes(' ')) return m
+    // Try to find a match in our values
     for (const [, v] of Object.entries(MODEL_BY_ID)) {
-      if (v === m) return v
+      if (v.toLowerCase() === lower) return v
     }
     return m
   }
@@ -189,20 +194,20 @@ const MODEL_BY_ID: Record<string, string> = {
 
   const handleSettingsApply = useCallback(async (update: { model?: string; common_rules?: Array<{ active: boolean; current_level: number }>; scenario_rules?: boolean[] }) => {
     if (update.common_rules) {
+      // Apply theme change immediately to body class
       const newThemeRule = update.common_rules.find(r => r.current_level !== undefined)
       if (newThemeRule) {
         const idx = newThemeRule.current_level - 1
         document.body.className = ['theme-classic', 'theme-forest', 'theme-ocean', 'theme-crimson', 'theme-space'][idx] || 'theme-classic'
       }
     }
+    // Normalize the model ID before sending to backend
     let normalizedUpdate = { ...update }
     if (update.model) {
-      const normalized = normalizeModel(update.model)
-      normalizedUpdate = { ...update, model: normalized }
-      console.log('Normalized model:', update.model, '->', normalized)
+      normalizedUpdate = { ...update, model: normalizeModel(update.model) }
     }
     await sendCommand(FAKE_SETUP_PLAYER, `__settings_update__ ${JSON.stringify(normalizedUpdate)}`)
-  }, [sendCommand, gameState])
+  }, [sendCommand])
 
   const handleOpenSettings = useCallback(() => {
     setShowSettings(true)
@@ -231,7 +236,9 @@ const MODEL_BY_ID: Record<string, string> = {
     const key = `ai_rpg_save_slot_${slot}`
     localStorage.removeItem(key)
     setShowTitle(true)
-  }, [])
+  }, [currentSlot])
+
+  void handleDeleteSlot // Used by TitleScreen
 
   const handleDelete = useCallback(async () => {
     const key = `ai_rpg_save_slot_${currentSlot}`
@@ -270,6 +277,7 @@ const MODEL_BY_ID: Record<string, string> = {
         onGooglePlayLogin={handleGooglePlayLogin}
         onGoogleLogout={handleGoogleLogout}
         onGuestPlay={() => setShowTitle(false)}
+        onDeleteSlot={handleDeleteSlot}
         saveSlots={[1,2,3,4].map(slot => {
           let characterName: string | undefined
           let scenario: string | undefined
@@ -603,5 +611,13 @@ locationColoringEnabled={locationColoringEnabled}
         />
       )}
     </div>
+  )
+}
+
+export function AppWrapper() {
+  return (
+    <MultiWindowGuard>
+      <App />
+    </MultiWindowGuard>
   )
 }

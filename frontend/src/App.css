@@ -1483,3 +1483,65 @@ html, body, #root {
     font-size: 16px;
   }
 }
+
+/* ── MultiWindowGuard ─────────────────────────────────────────────────────────── */
+.multiwindow-guard {
+  position: fixed;
+  inset: 0;
+  background: var(--bg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+}
+
+.multiwindow-modal {
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 32px;
+  max-width: 400px;
+  text-align: center;
+}
+
+.multiwindow-icon {
+  font-size: 48px;
+  margin-bottom: 16px;
+}
+
+.multiwindow-title {
+  font-family: var(--font-display);
+  font-size: 24px;
+  color: var(--text-bright);
+  margin-bottom: 16px;
+}
+
+.multiwindow-text {
+  font-family: var(--font-body);
+  font-size: 16px;
+  color: var(--text);
+  margin-bottom: 12px;
+}
+
+.multiwindow-hint {
+  font-family: var(--font-body);
+  font-size: 14px;
+  color: var(--text-dim);
+  margin-bottom: 24px;
+}
+
+.multiwindow-btn {
+  font-family: var(--font-display);
+  font-size: 16px;
+  padding: 12px 24px;
+  background: var(--gold);
+  color: var(--bg);
+  border: none;
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.multiwindow-btn:hover {
+  background: var(--gold-dim);
+}

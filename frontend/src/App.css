@@ -998,6 +998,9 @@ html, body, #root {
 /* ── Theme: Crimson ───────────────────────────────────────────────── */
 .theme-crimson { --bg: #120808; --bg-panel: #181010; --bg-raised: #201817; --bg-hover: #2a2020; --border: #3a2a2a; --border-bright:#5a3a3a; --gold: #aa4a4a; --gold-dim: #6a2a2a; --gold-glow: rgba(170,74,74,0.18); --text: #d1b5b5; --text-dim: #6a5252; --text-bright:#e9d2d2; --text-gm: #b88a8a; --red: #6b1a1a; --red-bright: #9a2a2a; --green: #3a4a3a; --green-bright:#5a6a5a; --terminal-bg: #0e0a0a; --terminal-glow:rgba(170,74,74,0.06); }
 
+/* ── Theme: Space (Void) ──────────────────────────────────────────── */
+.theme-space { --bg: #05070a; --bg-panel: #0a0d12; --bg-raised: #0f141a; --bg-hover: #151c24; --border: #1e2a3a; --border-bright:#2a3a50; --gold: #6a5aaa; --gold-dim: #3a2a6a; --gold-glow: rgba(106,90,170,0.18); --text: #b5c5e0; --text-dim: #52607a; --text-bright:#d2e0f0; --text-gm: #8a9ac0; --red: #2a3a6b; --red-bright: #4a5a8a; --green: #2a5a6b; --green-bright:#4a7a8a; --terminal-bg: #04060a; --terminal-glow:rgba(106,90,170,0.06); }
+
 /* ── Battle Mode Override ─────────────────────────────────────────── */
 .battle-mode { --bg: #1a0a0a; --bg-panel: #1f0f0f; --bg-raised: #2a1515; --bg-hover: #351a1a; --border: #4a2a2a; --border-bright:#6a3a3a; --gold: #d94a4a; --gold-dim: #8a2a2a; --gold-glow: rgba(217,74,74,0.25); --text: #e0b5b5; --text-dim: #7a5252; --text-bright:#f0d2d2; --text-gm: #c88a8a; --red: #8b1a1a; --red-bright: #c04545; --green: #4a6a4a; --green-bright:#6a8a6a; --terminal-bg: #120808; --terminal-glow:rgba(217,74,74,0.12); }
 

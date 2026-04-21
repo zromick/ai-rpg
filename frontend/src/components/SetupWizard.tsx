@@ -21,13 +21,18 @@ const NAME_SETS: Record<string, string[]> = {
   classic: [
     'Aldric Shadowmere', 'Seraphina Blackwood', 'Kael Ironforge', 'Morgana Nightwind', 'Theron Silverbrook',
     'Elowen Stormcaller', 'Dorian Grayhaven', 'Isolde Fairweather', 'Ragnar Bloodaxe', 'Lyria Moonshadow'
+  ],
+  space: [
+    'Zyx Voidwalker', 'Nebula Starborn', 'Orion Voidmere', 'Lyra Cosmicwind', 'Drax Shadowforge',
+    'Celeste Nightstar', 'Kael Voidhaven', 'Iris Fairnebula', 'Ragnar Staraxe', 'Nova Moonwalker'
   ]
 }
 
 function getScenarioNames(template: number): string[] {
   if (template >= 2 && template <= 3) return NAME_SETS.ocean
   if (template === 4) return NAME_SETS.crimson
-  if (template === 5 || template === 8) return NAME_SETS.forest
+  if (template === 5) return NAME_SETS.space
+  if (template === 8) return NAME_SETS.forest
   return NAME_SETS.classic
 }
 
@@ -110,10 +115,36 @@ export function SetupWizard({ data, onSubmit, onTitle }: Props) {
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [step, model, scenarioIdx, scenarioRules])
 
+  useEffect(() => {
+    if (step === 'scenario') {
+      const themeIdx = getScenarioTheme(scenarioIdx)
+      const themeClasses = ['theme-classic', 'theme-forest', 'theme-ocean', 'theme-crimson', 'theme-space']
+      document.body.className = themeClasses[themeIdx - 1] || 'theme-classic'
+    }
+  }, [scenarioIdx, step])
+
+  function getScenarioTheme(idx: number): number {
+    const s = data.scenarios[idx]?.title?.toLowerCase() || ''
+    if (s.includes('debt collector')) return 4
+    if (s.includes('lost heir') || s.includes('king')) return 1
+    if (s.includes('cursed relic')) return 4
+    if (s.includes('assassin')) return 4
+    if (s.includes('grain') || s.includes('poison')) return 2
+    if (s.includes('forgotten temple')) return 4
+    if (s.includes('veteran')) return 3
+    if (s.includes('double agent')) return 3
+    if (s.includes('beggar')) return 1
+    if (s.includes('shipwreck')) return 3
+    if (s.includes('haunted')) return 4
+    if (s.includes('void') || s.includes('merchant') || s.includes('space')) return 5
+    return 1
+  }
+
 function handleSubmit() {
+    const usedSuggestedName = suggestedName
     const validPlayers = players.slice(0, playerCount).map((n, i) => {
       const name = n.trim()
-      return name ? { name } : { name: i === 0 && !n ? getRandomName(scenarioIdx) : 'Unnamed Hero' }
+      return { name: name || (i === 0 ? usedSuggestedName : 'Unnamed Hero') }
     })
     onSubmit({ model, scenario_idx: scenarioIdx, scenario_rules: scenarioRules, common_rules: commonRules, players: validPlayers })
   }
@@ -122,6 +153,7 @@ function handleSubmit() {
   const steps: Step[] = ['model','scenario','scenario_rules','common_rules','players','confirm']
   const stepNum = steps.indexOf(step) + 1
   const suggestedName = getRandomName(scenarioIdx)
+  const playerNames = players.slice(0, playerCount).map((n, i) => n.trim() || (i === 0 ? suggestedName : 'Unnamed Hero'))
 
   return (
     <div className="setup-wizard">
@@ -325,7 +357,7 @@ function handleSubmit() {
             <div className="setup-summary">
               <div className="setup-sum-row"><span className="setup-sum-key">Model</span><span>{data.models.find(m => m.id === model)?.label ?? model}</span></div>
               <div className="setup-sum-row"><span className="setup-sum-key">Scenario</span><span>{data.scenarios[scenarioIdx]?.title}</span></div>
-              <div className="setup-sum-row"><span className="setup-sum-key">Players</span><span>{players.slice(0, playerCount).map((n, i) => n.trim() || (i === 0 ? suggestedName : 'Unnamed Hero')).join(', ')}</span></div>
+              <div className="setup-sum-row"><span className="setup-sum-key">Players</span><span>{playerNames.join(', ')}</span></div>
               <div className="setup-sum-row"><span className="setup-sum-key">Difficulty</span>
                 <span>{(() => { const dr = commonRules[data.common_rules.findIndex(r => r.label.includes('Difficulty'))]; return dr ? (dr.active ? `${dr.current_level} — ${data.common_rules.find(r => r.label.includes('Difficulty'))?.level_names[dr.current_level-1] ?? '?'}` : 'OFF') : '—'; })()}</span>
               </div>

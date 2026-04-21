@@ -142,6 +142,7 @@ export function Terminal({ history, playerName, isActive, mainQuest, sideQuests,
     else if (c === 'settings' || c === 'se') {
       console.log('settings/se command triggered, calling onOpenSettings')
       onOpenSettings()
+      return true
     }
     else if (c === 'delete' || c === 'del')
       setConfirmAction('delete')
@@ -183,7 +184,7 @@ export function Terminal({ history, playerName, isActive, mainQuest, sideQuests,
     if (confirmAction) { handleConfirm(text); return }
     if (resolveLocal(text)) {
       console.log('resolveLocal returned true')
-      return 
+      return
     }
     console.log('Calling sendCommand with:', playerName, text)
     setSending(true)

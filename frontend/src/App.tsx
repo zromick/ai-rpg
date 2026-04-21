@@ -47,6 +47,8 @@ export default function App() {
   })
 const MODEL_BY_ID: Record<string, string> = {
     'meta-llama/llama-3.1-8b-instruct': 'meta-llama/Llama-3.1-8B-Instruct',
+    'meta-llama/llama-3.1-8binstruct': 'meta-llama/Llama-3.1-8B-Instruct',
+    'meta-llama/llama-3-1-8b-instruct': 'meta-llama/Llama-3.1-8B-Instruct',
     'google/gemma-2-9b-it': 'google/gemma-2-9b-it',
     'mistralai/mistral-7b-instruct-v0.3': 'mistralai/Mistral-7B-Instruct-v0.3',
     'mistralai/mistral-nemo-instruct-2407': 'mistralai/Mistral-Nemo-Instruct-2407',
@@ -55,6 +57,17 @@ const MODEL_BY_ID: Record<string, string> = {
     'chaldene/llama-3.1-8b-instruct-abliterated': 'chaldene/Llama-3.1-8B-Instruct-Abliterated',
     'mistralai/mixtral-8x7b-instruct-v0.1': 'mistralai/Mixtral-8x7B-Instruct-v0.1',
     'microsoft/phi-3-medium-128k-instruct': 'microsoft/Phi-3-medium-128k-instruct',
+  }
+
+  function normalizeModel(m: string): string {
+    if (!m) return m
+    const lower = m.toLowerCase()
+    if (MODEL_BY_ID[lower]) return MODEL_BY_ID[lower]
+    if (m === m.toUpperCase() && m.includes('/')) return m
+    for (const [, v] of Object.entries(MODEL_BY_ID)) {
+      if (v === m) return v
+    }
+    return m
   }
   const [models] = useState(() => [
     { label:'Llama 3.1 8B Instruct (default)', id:'meta-llama/Llama-3.1-8B-Instruct' },
@@ -94,20 +107,20 @@ const MODEL_BY_ID: Record<string, string> = {
   if (s.includes('beggar')) return 1  // classic
   if (s.includes('shipwreck')) return 3  // ocean
   if (s.includes('haunted')) return 4  // crimson
-  if (s.includes('void') || s.includes('merchant') || s.includes('space')) return 3  // ocean
+  if (s.includes('void') || s.includes('merchant') || s.includes('space')) return 5  // space
   return 1  // classic default
 }
 
-useEffect(() => {
+  useEffect(() => {
     if (gameState) {
       setIsLoadingGame(false)
       const themeRule = gameState.settings?.common_rules?.find(r => r.label === 'Theme')
       if (themeRule) {
         const themeIdx = themeRule.current_level - 1
-        document.body.className = ['theme-classic', 'theme-forest', 'theme-ocean', 'theme-crimson'][themeIdx] || 'theme-classic'
+        document.body.className = ['theme-classic', 'theme-forest', 'theme-ocean', 'theme-crimson', 'theme-space'][themeIdx] || 'theme-classic'
       } else {
         const scenarioTheme = getScenarioTheme(gameState.scenario)
-        document.body.className = ['theme-classic', 'theme-forest', 'theme-ocean', 'theme-crimson'][scenarioTheme - 1] || 'theme-classic'
+        document.body.className = ['theme-classic', 'theme-forest', 'theme-ocean', 'theme-crimson', 'theme-space'][scenarioTheme - 1] || 'theme-classic'
       }
     }
   }, [gameState])
@@ -175,24 +188,24 @@ useEffect(() => {
   }, [sendCommand, currentSlot])
 
   const handleSettingsApply = useCallback(async (update: { model?: string; common_rules?: Array<{ active: boolean; current_level: number }>; scenario_rules?: boolean[] }) => {
-    const themeIdx = gameState?.settings?.common_rules?.find(r => r.label === 'Theme')?.current_level ?? 1
     if (update.common_rules) {
       const newThemeRule = update.common_rules.find(r => r.current_level !== undefined)
       if (newThemeRule) {
         const idx = newThemeRule.current_level - 1
-        document.body.className = ['theme-classic', 'theme-forest', 'theme-ocean', 'theme-crimson'][idx] || 'theme-classic'
+        document.body.className = ['theme-classic', 'theme-forest', 'theme-ocean', 'theme-crimson', 'theme-space'][idx] || 'theme-classic'
       }
     }
+    let normalizedUpdate = { ...update }
     if (update.model) {
-      const normalized = MODEL_BY_ID[update.model.toLowerCase()] || update.model
-      update = { ...update, model: normalized }
+      const normalized = normalizeModel(update.model)
+      normalizedUpdate = { ...update, model: normalized }
       console.log('Normalized model:', update.model, '->', normalized)
     }
-    await sendCommand(FAKE_SETUP_PLAYER, `__settings_update__ ${JSON.stringify(update)}`)
+    await sendCommand(FAKE_SETUP_PLAYER, `__settings_update__ ${JSON.stringify(normalizedUpdate)}`)
   }, [sendCommand, gameState])
 
   const handleOpenSettings = useCallback(() => {
-    setShowSettings(prev => !prev)
+    setShowSettings(true)
   }, [])
 
   const handleTitle = useCallback(async () => {

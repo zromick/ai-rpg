@@ -139,8 +139,10 @@ export function Terminal({ history, playerName, isActive, mainQuest, sideQuests,
       pushLocal(sideCharacters.length === 0 ? '👥 CHARACTERS\n(none yet)' : `👥 CHARACTERS\n${sideCharacters.map(c=>`• ${c.name} [${c.relation}]\n  ${c.description}`).join('\n')}`)
     else if (c === 'locations' || c === 'locs' || c === 'map')
       pushLocal(locations.length === 0 ? '🗺 LOCATIONS\n(none yet)' : `🗺 LOCATIONS\n${locations.map(l=>`• ${l.name} (turn ${l.last_visited})\n  ${l.description}`).join('\n')}`)
-    else if (c === 'settings' || c === 'se')
+    else if (c === 'settings' || c === 'se') {
+      console.log('settings/se command triggered, calling onOpenSettings')
       onOpenSettings()
+    }
     else if (c === 'delete' || c === 'del')
       setConfirmAction('delete')
     else if (c === 'help' || c === '?')

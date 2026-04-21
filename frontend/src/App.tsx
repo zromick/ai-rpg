@@ -45,7 +45,18 @@ export default function App() {
     } catch {}
     return null
   })
-const [models] = useState(() => [
+const MODEL_BY_ID: Record<string, string> = {
+    'meta-llama/llama-3.1-8b-instruct': 'meta-llama/Llama-3.1-8B-Instruct',
+    'google/gemma-2-9b-it': 'google/gemma-2-9b-it',
+    'mistralai/mistral-7b-instruct-v0.3': 'mistralai/Mistral-7B-Instruct-v0.3',
+    'mistralai/mistral-nemo-instruct-2407': 'mistralai/Mistral-Nemo-Instruct-2407',
+    'huggingfaceh4/zephyr-7b-beta': 'HuggingFaceH4/zephyr-7b-beta',
+    'nousresearch/hermes-3-llama-3.1-8b': 'NousResearch/Hermes-3-Llama-3.1-8B',
+    'chaldene/llama-3.1-8b-instruct-abliterated': 'chaldene/Llama-3.1-8B-Instruct-Abliterated',
+    'mistralai/mixtral-8x7b-instruct-v0.1': 'mistralai/Mixtral-8x7B-Instruct-v0.1',
+    'microsoft/phi-3-medium-128k-instruct': 'microsoft/Phi-3-medium-128k-instruct',
+  }
+  const [models] = useState(() => [
     { label:'Llama 3.1 8B Instruct (default)', id:'meta-llama/Llama-3.1-8B-Instruct' },
     { label:'Gemma 2 9B IT',               id:'google/gemma-2-9b-it' },
     { label:'Mistral 7B v0.3',                 id:'mistralai/Mistral-7B-Instruct-v0.3' },
@@ -172,13 +183,17 @@ useEffect(() => {
         document.body.className = ['theme-classic', 'theme-forest', 'theme-ocean', 'theme-crimson'][idx] || 'theme-classic'
       }
     }
+    if (update.model) {
+      const normalized = MODEL_BY_ID[update.model.toLowerCase()] || update.model
+      update = { ...update, model: normalized }
+      console.log('Normalized model:', update.model, '->', normalized)
+    }
     await sendCommand(FAKE_SETUP_PLAYER, `__settings_update__ ${JSON.stringify(update)}`)
   }, [sendCommand, gameState])
 
   const handleOpenSettings = useCallback(() => {
-    console.log('handleOpenSettings called, gameState:', !!gameState, 'settings:', !!gameState?.settings)
-    setShowSettings(true)
-  }, [gameState])
+    setShowSettings(prev => !prev)
+  }, [])
 
   const handleTitle = useCallback(async () => {
     await sendCommand(FAKE_SETUP_PLAYER, 'title')
@@ -193,6 +208,8 @@ useEffect(() => {
 
   const handleStartNew = useCallback((slot: number) => {
     setCurrentSlot(slot)
+    setJustRestored(false)
+    setIsLoadingGame(false)
     fetch('/api/state', { method: 'DELETE' }).catch(() => {})
     setShowTitle(false)
   }, [])
@@ -207,6 +224,9 @@ useEffect(() => {
     const key = `ai_rpg_save_slot_${currentSlot}`
     localStorage.removeItem(key)
     fetch('/api/state', { method: 'DELETE' }).catch(() => {})
+    setSelectedPlayer('')
+    setJustRestored(false)
+    setIsLoadingGame(false)
     setShowTitle(true)
   }, [currentSlot])
 

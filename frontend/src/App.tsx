@@ -36,6 +36,7 @@ export default function App() {
   const [currentSlot, setCurrentSlot] = useState(1)
   const [justRestored, setJustRestored] = useState(false)
   const [isLoadingGame, setIsLoadingGame] = useState(false)
+  const [startNewGame, setStartNewGame] = useState(false)
   const [googlePlayUser, setGooglePlayUser] = useState<{ id: string; name: string } | null>(() => {
     try {
       const saved = localStorage.getItem(SAVE_SLOT_KEY)
@@ -119,13 +120,22 @@ const MODEL_BY_ID: Record<string, string> = {
   useEffect(() => {
     if (gameState) {
       setIsLoadingGame(false)
-      const themeRule = gameState.settings?.common_rules?.find(r => r.label === 'Theme')
-      if (themeRule) {
-        const themeIdx = themeRule.current_level - 1
-        document.body.className = ['theme-classic', 'theme-forest', 'theme-ocean', 'theme-crimson', 'theme-space'][themeIdx] || 'theme-classic'
+      const activePlayer = gameState.players.find(p => p.name === gameState.active_player) ?? gameState.players[0]
+      if (activePlayer?.battle_mode) {
+        document.body.className = 'battle-mode'
+      } else if (activePlayer?.romance_mode) {
+        document.body.className = 'romance-mode'
+      } else if (activePlayer?.win_mode) {
+        document.body.className = 'win-mode'
       } else {
-        const scenarioTheme = getScenarioTheme(gameState.scenario)
-        document.body.className = ['theme-classic', 'theme-forest', 'theme-ocean', 'theme-crimson', 'theme-space'][scenarioTheme - 1] || 'theme-classic'
+        const themeRule = gameState.settings?.common_rules?.find(r => r.label === 'Theme')
+        if (themeRule) {
+          const themeIdx = themeRule.current_level - 1
+          document.body.className = ['theme-classic', 'theme-forest', 'theme-ocean', 'theme-crimson', 'theme-space'][themeIdx] || 'theme-classic'
+        } else {
+          const scenarioTheme = getScenarioTheme(gameState.scenario)
+          document.body.className = ['theme-classic', 'theme-forest', 'theme-ocean', 'theme-crimson', 'theme-space'][scenarioTheme - 1] || 'theme-classic'
+        }
       }
     }
   }, [gameState])
@@ -206,7 +216,9 @@ const MODEL_BY_ID: Record<string, string> = {
     if (update.model) {
       normalizedUpdate = { ...update, model: normalizeModel(update.model) }
     }
-    await sendCommand(FAKE_SETUP_PLAYER, `__settings_update__ ${JSON.stringify(normalizedUpdate)}`)
+    console.log('handleSettingsApply sending:', normalizedUpdate)
+    const ok = await sendCommand(FAKE_SETUP_PLAYER, `__settings_update__ ${JSON.stringify(normalizedUpdate)}`)
+    console.log('handleSettingsApply result:', ok)
   }, [sendCommand])
 
   const handleOpenSettings = useCallback(() => {
@@ -276,7 +288,10 @@ const MODEL_BY_ID: Record<string, string> = {
         googleDisplayName={googlePlayUser?.name || 'Player'}
         onGooglePlayLogin={handleGooglePlayLogin}
         onGoogleLogout={handleGoogleLogout}
-        onGuestPlay={() => setShowTitle(false)}
+        onGuestPlay={() => {
+          setShowTitle(false)
+          setStartNewGame(true)
+        }}
         onDeleteSlot={handleDeleteSlot}
         saveSlots={[1,2,3,4].map(slot => {
           let characterName: string | undefined
@@ -353,14 +368,14 @@ const MODEL_BY_ID: Record<string, string> = {
   }
 
 // ── Show title screen before game starts if there's saved game but no active game ─
-  if (!gameState && !setupState) {
+  if (!gameState && !setupState && !startNewGame) {
     return (
       <TitleScreen
         googlePlayUser={googlePlayUser}
         googleDisplayName={googlePlayUser?.name || 'Player'}
         onGooglePlayLogin={handleGooglePlayLogin}
         onGoogleLogout={handleGoogleLogout}
-        onGuestPlay={() => setShowTitle(false)}
+        onGuestPlay={() => { setShowTitle(false); setStartNewGame(true); }}
         saveSlots={[1,2,3,4].map(slot => {
           let characterName: string | undefined
           let scenario: string | undefined
@@ -449,11 +464,13 @@ const MODEL_BY_ID: Record<string, string> = {
   }
 
   // ── Setup wizard ──────────────────────────────────────────────────────────
-  // Only show stepper if we haven't just restored a game
-  if (!gameState && setupState?.phase === 'waiting' && setupState.data && !justRestored) {
+  // Only show stepper if we haven't just restored a game, or if starting new game as guest
+  // Don't show stepper when loading a save - wait for gameState to load from backend
+  const showSetupWizard = !justRestored && !gameState && ((setupState && setupState.phase === 'waiting' && setupState.data) || startNewGame)
+  if (showSetupWizard) {
     return (
       <div className="setup-page">
-        <SetupWizard data={setupState.data} onSubmit={handleSetupSubmit} onTitle={handleTitleFromSetup} />
+        <SetupWizard data={setupState!.data} onSubmit={handleSetupSubmit} onTitle={handleTitleFromSetup} />
       </div>
     )
   }
@@ -476,8 +493,11 @@ const MODEL_BY_ID: Record<string, string> = {
   if (!player) return null
 
   const currentTheme = gameState.settings?.common_rules?.find(r => r.label === 'Theme')?.current_level ?? 1
-  const themeClass = ['theme-classic', 'theme-forest', 'theme-ocean', 'theme-crimson'][currentTheme - 1] ?? 'theme-classic'
-  const battleClass = player.battle_mode ? 'battle-mode' : player.romance_mode ? 'romance-mode' : player.win_mode ? 'win-mode' : ''
+  const themeClass = ['theme-classic', 'theme-forest', 'theme-ocean', 'theme-crimson', 'theme-space'][currentTheme - 1] ?? 'theme-classic'
+  let battleClass = ''
+  if (player.battle_mode) battleClass = 'battle-mode'
+  else if (player.romance_mode) battleClass = 'romance-mode'
+  else if (player.win_mode) battleClass = 'win-mode'
 
   const ambientRadioEnabled = gameState.settings?.common_rules?.find(r => r.label === 'Ambient Radio')?.active ?? true
   const narrationEnabled = gameState.settings?.common_rules?.find(r => r.label === 'Narration Voice')?.active ?? true

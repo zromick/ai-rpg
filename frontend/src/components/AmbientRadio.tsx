@@ -198,17 +198,16 @@ useEffect(() => {
   setPlaying(true)
 }, [scenarioTitle])
 
-// Switch stations when mode changes, autoplay if was playing
+// Switch stations when mode changes, always autoplay
 useEffect(() => {
   const currentMode = isBattle ? 'battle' : isRomance ? 'romance' : isWin ? 'win' : 'default'
   if (currentMode !== lastMode) {
     setLastMode(currentMode)
     setStationIdx(0)
+    setPlaying(true)
     if (audioRef.current) {
       audioRef.current.volume = volume
-      if (playing) {
-        audioRef.current.play().catch(() => {})
-      }
+      audioRef.current.play().catch(() => {})
     }
   }
 }, [isBattle, isRomance, isWin])

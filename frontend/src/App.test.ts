@@ -111,6 +111,24 @@ function nameSeed(name: string): number {
   return Math.abs(h)
 }
 
+const NAME_SETS: Record<string, string[]> = {
+  classic: [
+    'Aldric Shadowmere', 'Seraphina Blackwood', 'Kael Ironforge', 'Morgana Nightwind', 'Theron Silverbrook',
+    'Elowen Stormcaller', 'Dorian Grayhaven', 'Isolde Fairweather', 'Ragnar Bloodaxe', 'Lyria Moonshadow'
+  ],
+  space: [
+    'Zyx Voidwalker', 'Nebula Starborn', 'Orion Voidmere', 'Lyra Cosmicwind', 'Drax Shadowforge',
+    'Celeste Nightstar', 'Kael Voidhaven', 'Iris Fairnebula', 'Ragnar Staraxe', 'Nova Moonwalker'
+  ],
+}
+
+function getRandomName(template: number, seed?: number): string {
+  let nameSet = NAME_SETS.classic
+  if (template === 5) nameSet = NAME_SETS.space
+  const idx = seed !== undefined ? seed % nameSet.length : Math.floor(Math.random() * nameSet.length)
+  return nameSet[idx]
+}
+
 describe('Name Seed', () => {
   it('should generate consistent seeds for same name', () => {
     expect(nameSeed('TestPlayer')).toBe(nameSeed('TestPlayer'))
@@ -122,5 +140,25 @@ describe('Name Seed', () => {
 
   it('should handle empty string', () => {
     expect(nameSeed('')).toBe(0)
+  })
+})
+
+describe('Random Names', () => {
+  it('should return consistent names with same seed', () => {
+    expect(getRandomName(5, 100)).toBe(getRandomName(5, 100))
+  })
+
+  it('should return different names with different seeds', () => {
+    expect(getRandomName(5, 100)).not.toBe(getRandomName(5, 101))
+  })
+
+  it('should return space names for template 5', () => {
+    const name = getRandomName(5, 0)
+    expect(NAME_SETS.space).toContain(name)
+  })
+
+  it('should return classic names for other templates', () => {
+    const name = getRandomName(1, 0)
+    expect(NAME_SETS.classic).toContain(name)
   })
 })

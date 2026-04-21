@@ -36,9 +36,12 @@ function getScenarioNames(template: number): string[] {
   return NAME_SETS.classic
 }
 
-function getRandomName(scenarioIdx: number): string {
+function getRandomName(scenarioIdx: number, seed?: number): string {
   const names = getScenarioNames(scenarioIdx)
-  return names[Math.floor(Math.random() * names.length)]
+  const idx = seed !== undefined
+    ? seed % names.length
+    : Math.floor(Math.random() * names.length)
+  return names[idx]
 }
 
 interface Props {
@@ -69,6 +72,11 @@ export function SetupWizard({ data, onSubmit, onTitle }: Props) {
   )
   const [players, setPlayers]           = useState<string[]>([''])
   const [playerCount, setPlayerCount]   = useState(1)
+  const [nameSeed, setNameSeed]         = useState(() => Math.floor(Math.random() * 1000))
+
+  useEffect(() => {
+    setNameSeed(Math.floor(Math.random() * 1000))
+  }, [scenarioIdx])
 
   function goNext() {
     if (step === 'model')          setStep('scenario')
@@ -141,10 +149,11 @@ export function SetupWizard({ data, onSubmit, onTitle }: Props) {
   }
 
 function handleSubmit() {
-    const usedSuggestedName = suggestedName
     const validPlayers = players.slice(0, playerCount).map((n, i) => {
       const name = n.trim()
-      return { name: name || (i === 0 ? usedSuggestedName : 'Unnamed Hero') }
+      if (name) return { name }
+      const baseSeed = (nameSeed + i * 7) % 1000
+      return { name: i === 0 ? getRandomName(scenarioIdx, baseSeed) : 'Unnamed Hero' }
     })
     onSubmit({ model, scenario_idx: scenarioIdx, scenario_rules: scenarioRules, common_rules: commonRules, players: validPlayers })
   }
@@ -152,8 +161,12 @@ function handleSubmit() {
   const scenario = data.scenarios[scenarioIdx]
   const steps: Step[] = ['model','scenario','scenario_rules','common_rules','players','confirm']
   const stepNum = steps.indexOf(step) + 1
-  const suggestedName = getRandomName(scenarioIdx)
-  const playerNames = players.slice(0, playerCount).map((n, i) => n.trim() || (i === 0 ? suggestedName : 'Unnamed Hero'))
+  const playerNames = players.slice(0, playerCount).map((n, i) => {
+    const name = n.trim()
+    if (name) return name
+    const baseSeed = (nameSeed + i * 7) % 1000
+    return i === 0 ? getRandomName(scenarioIdx, baseSeed) : 'Unnamed Hero'
+  })
 
   return (
     <div className="setup-wizard">

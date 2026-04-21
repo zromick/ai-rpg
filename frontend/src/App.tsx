@@ -235,6 +235,7 @@ const MODEL_BY_ID: Record<string, string> = {
     setCurrentSlot(slot)
     setJustRestored(false)
     setIsLoadingGame(false)
+    setStartNewGame(false)
     fetch('/api/state', { method: 'DELETE' }).catch(() => {})
     setShowTitle(false)
   }, [])
@@ -242,8 +243,9 @@ const MODEL_BY_ID: Record<string, string> = {
   const handleDeleteSlot = useCallback(async (slot: number) => {
     const key = `ai_rpg_save_slot_${slot}`
     localStorage.removeItem(key)
+    setStartNewGame(false)
     setShowTitle(true)
-  }, [currentSlot])
+  }, [])
 
   const handleDelete = useCallback(async () => {
     const key = `ai_rpg_save_slot_${currentSlot}`
@@ -308,7 +310,7 @@ const MODEL_BY_ID: Record<string, string> = {
                 else if (s.includes('beggar')) themeColor = '#d4af37'
                 else if (s.includes('shipwreck') || s.includes('obshore')) themeColor = '#1abc9c'
                 else if (s.includes('haunted')) themeColor = '#8e44ad'
-                else if (s.includes('void') || s.includes('merchant') || s.includes('space')) themeColor = '#3498db'
+                else if (s.includes('void') || s.includes('merchant') || s.includes('space')) themeColor = '#6a5aaa'
                 else themeColor = '#d4af37'
               }
             }

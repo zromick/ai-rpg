@@ -79,7 +79,7 @@ export function useGameState() {
           }
         }
       } catch {
-        if (!cancelled) setError('Bridge server unreachable — run: npm run server')
+        if (!cancelled) setError('Bridge server unreachable — run: npm run start')
       }
     }
     poll()
@@ -107,8 +107,8 @@ export function useGameState() {
         }, 500)
       }
       return response.ok
-    } catch (e) { 
-      return false 
+    } catch (e) {
+      return false
     }
   }, [])
 

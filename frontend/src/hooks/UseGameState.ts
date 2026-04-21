@@ -88,30 +88,28 @@ export function useGameState() {
     return () => { cancelled = true; clearInterval(id) }
   }, [gameState])
 
+  const checkError = useCallback(async (retries = 0) => {
+    try {
+      const er = await fetch('/api/error')
+      if (er.ok) {
+        const ed = await er.json() as { error?: string }
+        if (ed.error) { setError(ed.error); await fetch('/api/error', { method: 'DELETE' }); return }
+      }
+      if (retries < 8) setTimeout(() => checkError(retries + 1), 600)
+    } catch { /* ignore */ }
+  }, [])
+
   const sendCommand = useCallback(async (player: string, text: string): Promise<boolean> => {
     pendingCommand.current = true
     lastErrorCheck.current = Date.now()
     try {
       const response = await fetch('/api/command', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ player, text }) })
-      if (response.ok) {
-        setTimeout(async () => {
-          try {
-            const er = await fetch('/api/error')
-            if (er.ok) {
-              const ed = await er.json() as { error?: string }
-              if (ed.error) {
-                setError(ed.error)
-                await fetch('/api/error', { method: 'DELETE' })
-              }
-            }
-          } catch { /* ignore */ }
-        }, 500)
-      }
+      if (response.ok) checkError()
       return response.ok
-    } catch (e) {
+    } catch {
       return false
     }
-  }, [])
+  }, [checkError])
 
   return { gameState, setupState, error, loading, sendCommand }
 }

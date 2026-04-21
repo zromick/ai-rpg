@@ -14,14 +14,17 @@ const MODEL_BY_ID: Record<string, string> = {
   'microsoft/phi-3-medium-128k-instruct': 'microsoft/Phi-3-medium-128k-instruct',
 }
 
+const DEFAULT_MODEL_ID = 'meta-llama/Llama-3.1-8B-Instruct'
+const KNOWN_MODEL_IDS = new Set(Object.values(MODEL_BY_ID))
+
 function normalizeModel(m: string): string {
   if (!m) return m
   const lower = m.toLowerCase()
   if (MODEL_BY_ID[lower]) return MODEL_BY_ID[lower]
-  if (m.includes('/') && !m.includes(' ')) return m
   for (const [, v] of Object.entries(MODEL_BY_ID)) {
     if (v.toLowerCase() === lower) return v
   }
+  if (!KNOWN_MODEL_IDS.has(m)) return DEFAULT_MODEL_ID
   return m
 }
 
@@ -43,7 +46,7 @@ describe('Model Normalization', () => {
   })
 
   it('should handle unknown models', () => {
-    expect(normalizeModel('unknown/model')).toBe('unknown/model')
+    expect(normalizeModel('unknown/model')).toBe('meta-llama/Llama-3.1-8B-Instruct')
   })
 })
 

@@ -1,13 +1,15 @@
 // src/components/Narrator.tsx
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { NARRATION_SERVICES, DEFAULT_NARRATION_SERVICE_ID, getNarrationService } from '../narrationService'
 
 interface NarratorProps {
   enabled: boolean
+  lastGMRply?: string
 }
 
-export default function Narrator({ enabled }: NarratorProps) {
+export default function Narrator({ enabled, lastGMRply }: NarratorProps) {
   const audioRef = useRef<HTMLAudioElement>(null)
+  const lastNarratedRef = useRef('')
   const [currentServiceId, setCurrentServiceId] = useState(DEFAULT_NARRATION_SERVICE_ID)
   const [playing, setPlaying] = useState(false)
   const [audioSrc, setAudioSrc] = useState<string | null>(null)
@@ -26,11 +28,11 @@ export default function Narrator({ enabled }: NarratorProps) {
 
   const service = getNarrationService(currentServiceId)
 
-  const narrate = async () => {
+  const narrate = async (text?: string) => {
     if (!enabled || loading) return
     setLoading(true)
     try {
-      const url = await service.fetchAudio("This is a test of the narration voice. The game master will read responses aloud.")
+      const url = await service.fetchAudio(text ?? "This is a test of the narration voice. The game master will read responses aloud.")
       setAudioSrc(url)
       setPlaying(true)
     } catch (e) {
@@ -38,6 +40,12 @@ export default function Narrator({ enabled }: NarratorProps) {
     }
     setLoading(false)
   }
+
+  useEffect(() => {
+    if (!enabled || !lastGMRply || lastGMRply === lastNarratedRef.current || loading) return
+    lastNarratedRef.current = lastGMRply
+    narrate()
+  }, [lastGMRply, enabled])
 
   const pause = () => {
     if (audioRef.current) {
@@ -78,7 +86,7 @@ export default function Narrator({ enabled }: NarratorProps) {
           </button>
         )}
         {!playing ? (
-          <button onClick={narrate} className="narrator-play-btn" title="Test narration" disabled={loading}>
+          <button onClick={() => narrate("This is a test of the narration voice...")} className="narrator-play-btn" title="Test narration" disabled={loading}>
             {loading ? '…' : '▶'}
           </button>
         ) : (

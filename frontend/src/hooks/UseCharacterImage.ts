@@ -33,7 +33,7 @@ export function useCharacterImage(
   }, [imagePrompt, gmReply])
 
   useEffect(() => {
-    if (!prompt || !service?.fetchImage) return
+    if (!prompt || !service.fetchImage) return
     let canceled = false
 
     service.fetchImage(prompt, seed).then(url => {
@@ -43,7 +43,8 @@ export function useCharacterImage(
     })
 
     return () => { canceled = true }
-  }, [prompt, seed, service?.id, service?.fetchImage])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [prompt, seed, service.id]) // service.fetchImage intentionally omitted - function refs change on every render
 
   return { url }
 }

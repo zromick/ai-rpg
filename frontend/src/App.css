@@ -171,8 +171,9 @@ html, body, #root {
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
+  min-width: 0;
 }
-.col-right { border-right: none; border-left: 1px solid var(--border); }
+.col-right { border-right: none; border-left: 1px solid var(--border); flex-shrink: 1; }
 .col-right-content {
   flex: 1;
   min-height: 0;
@@ -1091,12 +1092,12 @@ html, body, #root {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 8px 12px;
+  padding: 8px 16px;
   background: var(--bg-panel);
   border-top: 1px solid var(--border);
   font-family: var(--font-mono);
   font-size: 10px;
-  min-height: 38px;
+  min-height: 40px;
   width: 100%;
   box-sizing: border-box;
 }

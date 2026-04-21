@@ -204,10 +204,13 @@ useEffect(() => {
   if (currentMode !== lastMode) {
     setLastMode(currentMode)
     setStationIdx(0)
-    setPlaying(true)
     if (audioRef.current) {
+      audioRef.current.pause()
+      audioRef.current.load()
       audioRef.current.volume = volume
-      audioRef.current.play().catch(() => {})
+      audioRef.current.play().then(() => setPlaying(true)).catch(() => setPlaying(false))
+    } else {
+      setPlaying(true)
     }
   }
 }, [isBattle, isRomance, isWin])

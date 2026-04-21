@@ -110,7 +110,7 @@ function filterUiRules(data: SetupData | null): CommonRule[] {
   return data.common_rules.filter(r => SETUP_UI_RULES.includes(r.label))
 }
 
-function buildSetupPayload(data: SetupData, selected: {
+function buildSetupPayload(_data: SetupData, selected: {
   model: string
   scenarioIdx: number
   scenarioRules: boolean[]

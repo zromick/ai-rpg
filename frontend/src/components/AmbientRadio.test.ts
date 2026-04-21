@@ -52,7 +52,7 @@ function selectWinStation(seed: number): Station {
   return WIN_STATIONS[seed % WIN_STATIONS.length]
 }
 
-function selectScenarioStation(scenario: string, seed: number): Station[] {
+function selectScenarioStation(scenario: string, _seed: number): Station[] {
   const key = Object.keys(SCENARIO_STATIONS).find(k => scenario.toLowerCase().includes(k.toLowerCase()))
   const pool = key ? SCENARIO_STATIONS[key] : []
   return pool.length > 0 ? pool : WIN_STATIONS

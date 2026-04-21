@@ -209,9 +209,18 @@ export function Terminal({ history, playerName, isActive, mainQuest, sideQuests,
   }
 
   // Build interleaved render items: history messages with extras inserted at correct positions
+  // Skip duplicate consecutive assistant messages
   const renderItems: RenderItem[] = []
   let extraIdx = 0
+  let lastAssistantContent = ''
   for (let i = 0; i < history.length; i++) {
+    // Skip duplicate consecutive assistant messages
+    if (history[i].role === 'assistant' && history[i].content === lastAssistantContent) {
+      continue
+    }
+    if (history[i].role === 'assistant') {
+      lastAssistantContent = history[i].content
+    }
     renderItems.push({ type: 'history', msg: history[i], key: `h${i}` })
     // Insert any extras that should appear after this history index
     while (extraIdx < extra.length && extra[extraIdx].afterIndex === i + 1) {

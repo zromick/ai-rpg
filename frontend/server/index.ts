@@ -16,10 +16,11 @@ dotenv.config({ path: path.resolve(__dirname, '../.env') })
 const app        = express()
 const PORT       = 3001
 
-const STATE_PATH = path.resolve(__dirname, '../game_state.json')
-const CMD_PATH   = path.resolve(__dirname, '../command_queue.json')
-const SETUP_PATH = path.resolve(__dirname, '../setup_state.json')
-const ERROR_PATH = path.resolve(__dirname, '../last_error.json')
+const PROJECT_ROOT = path.resolve(__dirname, '..')
+const STATE_PATH = path.resolve(PROJECT_ROOT, 'game_state.json')
+const CMD_PATH   = path.resolve(PROJECT_ROOT, 'command_queue.json')
+const SETUP_PATH = path.resolve(PROJECT_ROOT, 'setup_state.json')
+const ERROR_PATH = path.resolve(PROJECT_ROOT, 'last_error.json')
 
 app.use(cors())
 app.use(express.json())

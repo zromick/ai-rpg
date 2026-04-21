@@ -247,6 +247,18 @@ const MODEL_BY_ID: Record<string, string> = {
     setShowTitle(true)
   }, [])
 
+  const handleDeleteAllSlots = useCallback(async () => {
+    for (let i = 1; i <= 4; i++) {
+      const key = `ai_rpg_save_slot_${i}`
+      localStorage.removeItem(key)
+    }
+    fetch('/api/state', { method: 'DELETE' }).catch(() => {})
+    setSelectedPlayer('')
+    setJustRestored(false)
+    setIsLoadingGame(false)
+    setShowTitle(true)
+  }, [])
+
   const handleDelete = useCallback(async () => {
     const key = `ai_rpg_save_slot_${currentSlot}`
     localStorage.removeItem(key)
@@ -334,15 +346,15 @@ const MODEL_BY_ID: Record<string, string> = {
             themeColor
           }
         })}
-        onLoadSlot={async (slot) => {
+onLoadSlot={async (slot) => {
           setCurrentSlot(slot)
+          setStartNewGame(false)
           try {
             const key = `ai_rpg_save_slot_${slot}`
             const saved = localStorage.getItem(key)
             if (saved) {
               const parsed = JSON.parse(saved)
               if (parsed.gameState) {
-                
                 await fetch('/api/restore', {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
@@ -352,13 +364,15 @@ const MODEL_BY_ID: Record<string, string> = {
             }
           } catch {}
           setShowTitle(false)
+          setIsLoadingGame(true)
         }}
-        onStartNew={handleStartNew}
+onStartNew={handleStartNew}
+        onDeleteAllSlots={handleDeleteAllSlots}
       />
     )
   }
 
-// ── Show title screen before game starts if there's saved game but no active game ─
+  // ── Show title screen before game starts if there's saved game but no active game ─
   if (!gameState && !setupState && !startNewGame) {
     return (
       <TitleScreen
@@ -414,13 +428,13 @@ const MODEL_BY_ID: Record<string, string> = {
         })}
         onLoadSlot={async (slot) => {
           setCurrentSlot(slot)
+          setStartNewGame(false)
           try {
             const key = `ai_rpg_save_slot_${slot}`
             const saved = localStorage.getItem(key)
             if (saved) {
               const parsed = JSON.parse(saved)
               if (parsed.gameState) {
-                
                 await fetch('/api/restore', {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
@@ -430,8 +444,10 @@ const MODEL_BY_ID: Record<string, string> = {
             }
           } catch {}
           setShowTitle(false)
+          setIsLoadingGame(true)
         }}
         onStartNew={handleStartNew}
+        onDeleteAllSlots={handleDeleteAllSlots}
       />
     )
   }
@@ -457,11 +473,12 @@ const MODEL_BY_ID: Record<string, string> = {
   // ── Setup wizard ──────────────────────────────────────────────────────────
   // Only show stepper if we haven't just restored a game, or if starting new game as guest
   // Don't show stepper when loading a save - wait for gameState to load from backend
-  const showSetupWizard = !justRestored && !gameState && ((setupState && setupState.phase === 'waiting' && setupState.data) || startNewGame)
+  const hasSetupData = setupState && setupState.phase === 'waiting' && setupState.data
+  const showSetupWizard = !justRestored && !gameState && (hasSetupData || startNewGame)
   if (showSetupWizard) {
     return (
       <div className="setup-page">
-        <SetupWizard data={setupState!.data} onSubmit={handleSetupSubmit} onTitle={handleTitleFromSetup} />
+        <SetupWizard data={hasSetupData ? setupState!.data : null} onSubmit={handleSetupSubmit} onTitle={handleTitleFromSetup} />
       </div>
     )
   }

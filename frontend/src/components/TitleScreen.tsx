@@ -10,6 +10,7 @@ interface Props {
   onLoadSlot: (slot: number) => void
   onStartNew: (slot: number) => void
   onDeleteSlot?: (slot: number) => void
+  onDeleteAllSlots?: () => void
 }
 
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || ''
@@ -43,10 +44,10 @@ async function getGoogleUserInfo(accessToken: string): Promise<string> {
   return 'Player'
 }
 
-export function TitleScreen({ googlePlayUser, googleDisplayName, onGooglePlayLogin, onGoogleLogout, onGuestPlay, saveSlots, onLoadSlot, onStartNew, onDeleteSlot }: Props) {
-  void onDeleteSlot // TODO: wire up delete button for save slots
+export function TitleScreen({ googlePlayUser, googleDisplayName, onGooglePlayLogin, onGoogleLogout, onGuestPlay, saveSlots, onLoadSlot, onStartNew, onDeleteSlot, onDeleteAllSlots }: Props) {
   const [isLoadingGoogle, setIsLoadingGoogle] = useState(false)
   const [showLoginError, setShowLoginError] = useState(false)
+  const [deleteConfirm, setDeleteConfirm] = useState(false)
 
   useEffect(() => {
     const script = document.createElement('script')
@@ -147,6 +148,14 @@ export function TitleScreen({ googlePlayUser, googleDisplayName, onGooglePlayLog
               <span className="title-user-badge">✓</span>
               Welcome, {googleDisplayName}!
               <button className="title-logout-btn" onClick={onGoogleLogout}>Logout</button>
+              {onDeleteAllSlots && (
+                <button
+                  className="title-delete-all-btn"
+                  onClick={() => deleteConfirm ? (onDeleteAllSlots(), setDeleteConfirm(false)) : setDeleteConfirm(true)}
+                >
+                  {deleteConfirm ? 'Confirm Delete All' : 'Delete All Saves'}
+                </button>
+              )}
             </div>
           ) : (
             showLoginError && (

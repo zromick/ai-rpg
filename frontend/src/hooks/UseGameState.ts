@@ -74,8 +74,9 @@ export function useGameState() {
                 await fetch('/api/error', { method: 'DELETE' })
               }
             }
+            // 404 = no error file exists yet - that's fine, don't log it
           } catch {
-            // Error unreachable - that's fine
+            // Error endpoint unreachable - that's fine
           }
         }
       } catch {

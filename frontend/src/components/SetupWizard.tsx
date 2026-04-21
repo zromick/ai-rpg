@@ -63,6 +63,17 @@ type Step = 'model' | 'scenario' | 'scenario_rules' | 'common_rules' | 'players'
 export function SetupWizard({ data, onSubmit, onTitle }: Props) {
   const SETUP_UI_RULES = ['Character Coloring', 'Location Coloring', 'Ambient Radio', 'Narration Voice', 'Theme', 'Time Travel']
 
+  if (!data?.models?.length || !data?.common_rules?.length) {
+    return (
+      <div className="setup-page">
+        <div className="setup-loading">
+          <p>Loading setup data...</p>
+          <button className="setup-back-btn" onClick={onTitle}>Back to Title</button>
+        </div>
+      </div>
+    )
+  }
+
   const [step, setStep]                 = useState<Step>('model')
   const [model, setModel]               = useState(data.models[0]?.id ?? '')
   const [scenarioIdx, setScenarioIdx]   = useState(0)

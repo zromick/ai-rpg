@@ -38,8 +38,8 @@ const BATTLE_STATIONS: Station[] = [
 // Romance mode stations - romantic, intimate, emotional
 const ROMANCE_STATIONS: Station[] = [
   {
-    name: 'Liquid Bytes',
-    url: 'https://ice1.somafm.com/liquid-128-mp3',
+    name: 'Groove Salad',
+    url: 'https://ice1.somafm.com/groovesalad-128-mp3',
     mood: 'Deep electronic — tender moments and quiet intimacy',
     isRomance: true,
   },
@@ -50,8 +50,8 @@ const ROMANCE_STATIONS: Station[] = [
     isRomance: true,
   },
   {
-    name: 'Dreamyard',
-    url: 'https://ice1.somafm.com/dreamyard-128-mp3',
+    name: 'Secret Agent',
+    url: 'https://ice1.somafm.com/secretagent-128-mp3',
     mood: 'Chillout dreams — soft words and warm embraces',
     isRomance: true,
   },

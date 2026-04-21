@@ -1,4 +1,6 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { render, screen, fireEvent } from '@testing-library/react'
+import { TitleScreen } from './TitleScreen'
 
 interface SaveSlot {
   slot: number
@@ -142,6 +144,301 @@ describe('TitleScreen', () => {
         { slot: 1, hasData: false },
       ])
       expect(latest).toBeUndefined()
+    })
+  })
+})
+
+describe('TitleScreen Component', () => {
+  const defaultProps = {
+    googlePlayUser: null,
+    googleDisplayName: '',
+    onGooglePlayLogin: vi.fn(),
+    onGoogleLogout: vi.fn(),
+    onGuestPlay: vi.fn(),
+    saveSlots: [],
+    onLoadSlot: vi.fn(),
+    onStartNew: vi.fn(),
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    document.body.innerHTML = ''
+  })
+
+  describe('Save Slot Rendering', () => {
+    it('should render 4 save slots when user is logged in', () => {
+      render(
+        <TitleScreen
+          {...defaultProps}
+          googlePlayUser={{ id: 'test-user', name: 'Test User' }}
+          saveSlots={[
+            { slot: 1, hasData: true, characterName: 'Hero', scenario: 'Void Merchant', turn: 5 },
+            { slot: 2, hasData: false },
+            { slot: 3, hasData: true, characterName: 'Rogue', scenario: 'King', turn: 12 },
+            { slot: 4, hasData: false },
+          ]}
+        />
+      )
+
+      expect(screen.getAllByRole('button')).toHaveLength(4)
+    })
+
+    it('should display slot number for empty slots', () => {
+      render(
+        <TitleScreen
+          {...defaultProps}
+          googlePlayUser={{ id: 'test-user', name: 'Test User' }}
+          saveSlots={[
+            { slot: 1, hasData: false },
+          ]}
+        />
+      )
+
+      expect(screen.getByText('New Slot 1')).toBeTruthy()
+    })
+
+    it('should display character name and scenario for occupied slots', () => {
+      render(
+        <TitleScreen
+          {...defaultProps}
+          googlePlayUser={{ id: 'test-user', name: 'Test User' }}
+          saveSlots={[
+            { slot: 1, hasData: true, characterName: 'Hero', scenario: 'Void Merchant', turn: 5 },
+          ]}
+        />
+      )
+
+      expect(screen.getByText('Hero')).toBeTruthy()
+      expect(screen.getByText(/Void Merchant/)).toBeTruthy()
+    })
+
+    it('should display turn number for occupied slots', () => {
+      render(
+        <TitleScreen
+          {...defaultProps}
+          googlePlayUser={{ id: 'test-user', name: 'Test User' }}
+          saveSlots={[
+            { slot: 1, hasData: true, characterName: 'Hero', scenario: 'Void Merchant', turn: 42 },
+          ]}
+        />
+      )
+
+      expect(screen.getByText(/Turn 42/)).toBeTruthy()
+    })
+  })
+
+  describe('Empty Slot Detection', () => {
+    it('should show New Slot text for empty slot', () => {
+      render(
+        <TitleScreen
+          {...defaultProps}
+          googlePlayUser={{ id: 'test-user', name: 'Test User' }}
+          saveSlots={[
+            { slot: 1, hasData: false },
+          ]}
+        />
+      )
+
+      expect(screen.getByText('New Slot 1')).toBeTruthy()
+    })
+
+    it('should show slot info for occupied slot', () => {
+      render(
+        <TitleScreen
+          {...defaultProps}
+          googlePlayUser={{ id: 'test-user', name: 'Test User' }}
+          saveSlots={[
+            { slot: 1, hasData: true, characterName: 'Hero' },
+          ]}
+        />
+      )
+
+      expect(screen.getByText('Hero')).toBeTruthy()
+    })
+  })
+
+  describe('Theme Color on Load', () => {
+    it('should apply theme color border for occupied slots with themeColor', () => {
+      render(
+        <TitleScreen
+          {...defaultProps}
+          googlePlayUser={{ id: 'test-user', name: 'Test User' }}
+          saveSlots={[
+            { slot: 1, hasData: true, characterName: 'Hero', scenario: 'Void Merchant', turn: 5, themeColor: '#6a5aaa' },
+          ]}
+        />
+      )
+
+      const button = screen.getByRole('button')
+      expect(button.style.borderColor).toBe('rgb(106, 90, 205)')
+    })
+
+    it('should apply gold theme color for Crown scenarios', () => {
+      render(
+        <TitleScreen
+          {...defaultProps}
+          googlePlayUser={{ id: 'test-user', name: 'Test User' }}
+          saveSlots={[
+            { slot: 1, hasData: true, characterName: 'King', scenario: 'Beggars to Crowns', turn: 10, themeColor: '#d4af37' },
+          ]}
+        />
+      )
+
+      const button = screen.getByRole('button')
+      expect(button.style.borderColor).toBe('rgb(212, 175, 55)')
+    })
+  })
+
+  describe('New Game vs Continue Flow', () => {
+    it('should call onStartNew when clicking empty slot', () => {
+      const onStartNew = vi.fn()
+      render(
+        <TitleScreen
+          {...defaultProps}
+          googlePlayUser={{ id: 'test-user', name: 'Test User' }}
+          saveSlots={[
+            { slot: 1, hasData: false },
+          ]}
+          onStartNew={onStartNew}
+        />
+      )
+
+      fireEvent.click(screen.getByText('New Slot 1'))
+      expect(onStartNew).toHaveBeenCalledWith(1)
+    })
+
+    it('should call onLoadSlot when clicking occupied slot', () => {
+      const onLoadSlot = vi.fn()
+      render(
+        <TitleScreen
+          {...defaultProps}
+          googlePlayUser={{ id: 'test-user', name: 'Test User' }}
+          saveSlots={[
+            { slot: 1, hasData: true, characterName: 'Hero' },
+          ]}
+          onLoadSlot={onLoadSlot}
+        />
+      )
+
+      fireEvent.click(screen.getByText('Hero'))
+      expect(onLoadSlot).toHaveBeenCalledWith(1)
+    })
+  })
+
+  describe('Login/Logout Flow', () => {
+    it('should show Play as Guest button when not logged in', () => {
+      render(<TitleScreen {...defaultProps} googlePlayUser={null} />)
+
+      expect(screen.getByText('Play as Guest')).toBeTruthy()
+    })
+
+    it('should show Sign in with Google when not logged in', () => {
+      render(<TitleScreen {...defaultProps} googlePlayUser={null} />)
+
+      expect(screen.getByText('Sign in with Google')).toBeTruthy()
+    })
+
+    it('should call onGuestPlay when clicking Play as Guest', () => {
+      const onGuestPlay = vi.fn()
+      render(
+        <TitleScreen
+          {...defaultProps}
+          onGuestPlay={onGuestPlay}
+        />
+      )
+
+      fireEvent.click(screen.getByText('Play as Guest'))
+      expect(onGuestPlay).toHaveBeenCalledTimes(1)
+    })
+
+    it('should show user info when logged in', () => {
+      render(
+        <TitleScreen
+          {...defaultProps}
+          googlePlayUser={{ id: 'test-user', name: 'Test User' }}
+          googleDisplayName="Test User"
+          saveSlots={[]}
+        />
+      )
+
+      expect(screen.getByText(/Welcome, Test User!/)).toBeTruthy()
+    })
+
+    it('should call onGoogleLogout when clicking Logout', () => {
+      const onGoogleLogout = vi.fn()
+      render(
+        <TitleScreen
+          {...defaultProps}
+          googlePlayUser={{ id: 'test-user', name: 'Test User' }}
+          googleDisplayName="Test User"
+          saveSlots={[]}
+          onGoogleLogout={onGoogleLogout}
+        />
+      )
+
+      fireEvent.click(screen.getByText('Logout'))
+      expect(onGoogleLogout).toHaveBeenCalledTimes(1)
+    })
+
+    it('should show delete all button when onDeleteAllSlots provided', () => {
+      const onDeleteAllSlots = vi.fn()
+      render(
+        <TitleScreen
+          {...defaultProps}
+          googlePlayUser={{ id: 'test-user', name: 'Test User' }}
+          googleDisplayName="Test User"
+          saveSlots={[]}
+          onDeleteAllSlots={onDeleteAllSlots}
+        />
+      )
+
+      expect(screen.getByText('Delete All Saves')).toBeTruthy()
+    })
+
+    it('should show confirm delete on second click', () => {
+      const onDeleteAllSlots = vi.fn()
+      render(
+        <TitleScreen
+          {...defaultProps}
+          googlePlayUser={{ id: 'test-user', name: 'Test User' }}
+          googleDisplayName="Test User"
+          saveSlots={[]}
+          onDeleteAllSlots={onDeleteAllSlots}
+        />
+      )
+
+      fireEvent.click(screen.getByText('Delete All Saves'))
+      expect(screen.getByText('Confirm Delete All')).toBeTruthy()
+      
+      fireEvent.click(screen.getByText('Confirm Delete All'))
+      expect(onDeleteAllSlots).toHaveBeenCalledTimes(1)
+    })
+
+    it('should show loading state when isLoadingGoogle is true', () => {
+      render(
+        <TitleScreen
+          {...defaultProps}
+          googlePlayUser={null}
+        />
+      )
+
+      const signInButton = screen.getByText('Sign in with Google')
+      fireEvent.click(signInButton)
+    })
+  })
+
+  describe('Header and Footer', () => {
+    it('should render title with crown and name', () => {
+      render(<TitleScreen {...defaultProps} />)
+
+      expect(screen.getByText('♛')).toBeTruthy()
+      expect(screen.getByText('AI RPG')).toBeTruthy()
+    })
+
+    it('should render footer with powered by text', () => {
+      render(<TitleScreen {...defaultProps} />)
+
+      expect(screen.getByText(/Powered by HuggingFace/)).toBeTruthy()
     })
   })
 })

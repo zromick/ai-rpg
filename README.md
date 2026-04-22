@@ -40,36 +40,15 @@ HF_TOKEN=hf_yourtoken
 
 ### 3. (Optional) Google OAuth for Play sync
 
-To enable Google Play save sync, you need to create a Google Cloud project with OAuth credentials.
+- See [Google Sign-in for Web](https://developers.google.com/identity/sign-in/web/sign-in) for full documentation.
+- Enable authorized JavaScript Origins and Authorized Redirect URIs to use `http://localhost:5173`
 
-#### Step A: Create OAuth Client ID
-
-1. Go to [Google Cloud Console → Credentials](https://console.cloud.google.com/apis/credentials?project=ai-rpg-frontend)
-2. Click **Create Credentials** → **OAuth client ID**
-3. Application type: **Web application**
-4. Fill in:
-   - Name: `AI RPG Frontend`
-   - Authorized JavaScript origins: `http://localhost:5173`
-   - Authorized redirect URIs: `http://localhost:5173`
-5. Click **Create** and copy the **Client ID** and **Client secret**
-
-#### Step B: Configure OAuth Consent Screen
-
-1. Go to [Google Cloud Console → OAuth consent](https://console.cloud.google.com/apis/consent?project=ai-rpg-frontend)
-2. User Type: **External**
-3. Fill in required fields (App name, email)
-4. Click **Save and continue** → **Add or remove scopes** → Save → **Save and continue**
-5. In **Test users**, add your Google account email
-6. Click **Save and continue** → **Back to dashboard**
-
-#### Step C: Add to .env
+#### Add to .env
 
 ```
 GOOGLE_CLIENT_ID=your_client_id_here
 GOOGLE_CLIENT_SECRET=your_client_secret_here
 ```
-
-See [Google Sign-in for Web](https://developers.google.com/identity/sign-in/web/sign-in) for full documentation.
 
 ### 5. Build and run the Rust game
 

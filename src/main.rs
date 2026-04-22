@@ -352,7 +352,7 @@ Current locations JSON: {locs}
 Current in-game time: {curr_time}
 Current nicknames: {nicknames}
 
-Produce this exact JSON (all fields required, use the exact field names shown):
+Produce this exact JSON (all fields required, use the exact field names shown, do not hallucinate, do not make up answers):
 {{
   "inventory": [
     {{"name": "item name", "quantity": "number or description", "note": "condition or context"}}
@@ -373,7 +373,7 @@ Produce this exact JSON (all fields required, use the exact field names shown):
   "romance_mode": true or false
 }}
 
-Critical rules:
+Critical rules (every one of these rules is important):
   1. COPY ALL existing entries from current arrays unless they explicitly changed.
   2. ADD any new characters mentioned BY NAME in the GM response (guards, merchants, named NPCs, animals with roles). EXCLUDE the words "You" and "the" — do NOT add them as a character.
   3. ADD the current location if it can be identified from context.

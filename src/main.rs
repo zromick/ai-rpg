@@ -697,7 +697,7 @@ fn opening_scene(client: &Client, key: &str, gs: &GameState, session: &mut Playe
             let mut s2 = snap.clone(); s2.insert(session.stats.name.clone(), session.clone());
             write_state(gs, &s2, &session.stats.name);
         }
-        Err(e) => eprintln!("  [ERROR opening scene] {}", e),
+        Err(e) => { eprintln!("  [ERROR opening scene] {}", e); let _ = std::fs::write(ERROR_FILE, serde_json::to_string(&json!({"error": e.to_string()})).unwrap_or_default()); },
     }
 }
 
@@ -808,6 +808,7 @@ fn process_action(client: &Client, key: &str, gs: &mut GameState, sessions: &mut
         }
         Err(e) => {
             eprintln!("  [ERROR] {}", e);
+            let _ = std::fs::write(ERROR_FILE, serde_json::to_string(&json!({"error": e.to_string()})).unwrap_or_default());
             let s = sessions.get_mut(name).unwrap();
             s.history.pop();
             if let Some(r) = s.stats.prompt_log.pop() { s.stats.prompt_count -= 1; s.stats.total_chars -= r.char_count as u64; }

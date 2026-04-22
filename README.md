@@ -35,7 +35,7 @@ An optional React frontend provides a live dashboard with AI-generated scene ima
 Create `.env` in the project root:
 
 ```
-HF_API_TOKEN=hf_yourtoken
+HF_TOKEN=hf_yourtoken
 ```
 
 ### 3. (Optional) Google OAuth for Play sync
@@ -65,8 +65,8 @@ To enable Google Play save sync, you need to create a Google Cloud project with 
 #### Step C: Add to .env
 
 ```
-VITE_GOOGLE_CLIENT_ID=xxxxxx.apps.googleusercontent.com
-VITE_GOOGLE_CLIENT_SECRET=yyyyy
+GOOGLE_CLIENT_ID=your_client_id_here
+GOOGLE_CLIENT_SECRET=your_client_secret_here
 ```
 
 See [Google Sign-in for Web](https://developers.google.com/identity/sign-in/web/sign-in) for full documentation.

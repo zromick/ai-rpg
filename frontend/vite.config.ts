@@ -14,6 +14,9 @@ export default defineConfig({
   },
   server: {
     port: 5173,
+    // strictPort intentionally OFF: if 5173 is taken, fall through to 5174.
+    // Both ports are whitelisted in Google Cloud Console, so OAuth works
+    // either way and a stale process on 5173 doesn't block the dev loop.
     proxy: {
       '/api': {
         target: 'http://localhost:3001',

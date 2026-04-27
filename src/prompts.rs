@@ -30,8 +30,8 @@ pub fn side_quest_pool() -> Vec<SideQuest> {
     vec![
         SideQuest {
             title: "The Debt Collector",
-            description: "You owe a dangerous moneylender 50 gold. Before you can win, \
-you must repay this debt in full — or eliminate the lender and erase all evidence of the loan.",
+            description: "You owe a dangerous moneylender 50 gold. You must repay this debt \
+in full, or eliminate the lender and erase every trace of the loan.",
             steps: &[
                 "Learn the moneylender's name and location",
                 "Gather 50 gold — or find leverage against the lender",
@@ -40,8 +40,8 @@ you must repay this debt in full — or eliminate the lender and erase all evide
         },
         SideQuest {
             title: "The Lost Heir",
-            description: "A child of noble blood has gone missing in the slums. Find them, \
-confirm their identity, and return them to their family — or use the secret to your own advantage.",
+            description: "A child of noble blood has gone missing in the slums. You must find \
+them, confirm their identity, and return them to their family — or leverage the secret yourself.",
             steps: &[
                 "Hear the rumor of the missing heir",
                 "Search the slums and locate the child",
@@ -51,8 +51,8 @@ confirm their identity, and return them to their family — or use the secret to
         },
         SideQuest {
             title: "The Cursed Relic",
-            description: "A powerful artifact is circulating in the black market. \
-Acquire it, determine its true nature, and either destroy it or deliver it to the Mage's Conclave.",
+            description: "A powerful artifact is circulating in the black market. You must \
+acquire it, determine its true nature, and either destroy it or deliver it to the Mage's Conclave.",
             steps: &[
                 "Discover that a dangerous artifact is in circulation",
                 "Track it through the black market and acquire it",
@@ -62,8 +62,8 @@ Acquire it, determine its true nature, and either destroy it or deliver it to th
         },
         SideQuest {
             title: "The Assassin's Contract",
-            description: "Someone has placed a contract on your life. You must identify \
-the client, neutralize the assassin, and confront the person who ordered your death.",
+            description: "Someone has placed a contract on your life. You must identify the \
+client, neutralize the assassin, and confront the person who ordered your death.",
             steps: &[
                 "Survive the first assassination attempt",
                 "Identify and neutralize the hired assassin",
@@ -72,8 +72,8 @@ the client, neutralize the assassin, and confront the person who ordered your de
         },
         SideQuest {
             title: "The Grain Conspiracy",
-            description: "A merchant cartel is hoarding grain to starve the poor quarter \
-and raise prices. Expose them publicly and break the cartel — without being killed for it.",
+            description: "A merchant cartel is hoarding grain to starve the poor quarter and \
+inflate prices. You must expose them publicly and break the cartel — without being killed for it.",
             steps: &[
                 "Notice the grain shortage and rising prices",
                 "Investigate and identify the cartel members",
@@ -84,8 +84,8 @@ and raise prices. Expose them publicly and break the cartel — without being ki
         SideQuest {
             title: "The Forgotten Temple",
             description: "An ancient temple beneath the city holds a secret that could \
-destabilize the throne. Reach its inner sanctum, read the inscription, and decide what \
-to do with the knowledge.",
+destabilize the throne. You must reach its inner sanctum, read the inscription, and decide \
+what to do with the knowledge.",
             steps: &[
                 "Learn of the temple's existence beneath the city",
                 "Find the entrance and navigate its dangers",
@@ -94,9 +94,8 @@ to do with the knowledge.",
         },
         SideQuest {
             title: "The Veteran's Honor",
-            description: "A celebrated war hero has been falsely imprisoned. \
-Prove their innocence, secure their release, and earn their sworn loyalty — \
-or their enmity if you fail.",
+            description: "A celebrated war hero has been falsely imprisoned. You must prove \
+their innocence and secure their release to earn their sworn loyalty — or their enmity if you fail.",
             steps: &[
                 "Learn of the veteran's imprisonment",
                 "Investigate the charges and gather evidence of innocence",
@@ -105,9 +104,9 @@ or their enmity if you fail.",
         },
         SideQuest {
             title: "The Poisoned Well",
-            description: "Disease is spreading through the poor quarter. \
-Identify the source — natural or deliberate — stop it, and publicly attribute blame \
-to the responsible party.",
+            description: "Disease is spreading through the poor quarter. You must identify \
+the source — natural or deliberate — stop it, and publicly attribute blame to the \
+responsible party.",
             steps: &[
                 "Witness the spreading sickness in the poor quarter",
                 "Investigate the water supply and identify the source",
@@ -116,9 +115,9 @@ to the responsible party.",
         },
         SideQuest {
             title: "The Double Agent",
-            description: "One of your allies is secretly feeding information to a rival faction. \
-Identify the traitor through observation and deduction, then decide whether to expose, \
-turn, or eliminate them.",
+            description: "One of your allies is secretly feeding information to a rival \
+faction. You must identify the traitor through observation and deduction, then decide \
+whether to expose, turn, or eliminate them.",
             steps: &[
                 "Notice that your plans keep reaching your enemies",
                 "Narrow down the suspects through observation",
@@ -128,9 +127,9 @@ turn, or eliminate them.",
         },
         SideQuest {
             title: "The King's Fool",
-            description: "The court jester knows a secret about the king that no one else does. \
-Win their trust, extract the secret, and leverage it — carefully. \
-The jester is shrewder than they appear.",
+            description: "The court jester knows a secret about the king that no one else \
+does. You must win their trust, extract the secret, and leverage it carefully — the jester \
+is shrewder than they appear.",
             steps: &[
                 "Learn that the court jester holds a royal secret",
                 "Win the jester's trust through favors or wit",
@@ -457,8 +456,8 @@ steep, and only exceptional wealth or political leverage opens the path to kings
                     kind: RuleKind::Boolean { default: true },
                 },
             ],
-            win_conditions: "You are publicly acknowledged as King of Aethelgard, crowned \
-before the nobility and clergy in the Grand Cathedral.",
+            win_conditions: "You must rise from beggar to king and be crowned publicly \
+before the nobility and clergy in the Grand Cathedral of Aethelgard.",
             main_quest_steps: &[
                 "Survive your first day — find food and shelter",
                 "Earn your first real coin through work or cunning",
@@ -528,8 +527,8 @@ player. Actions that help one tribe may antagonize another.",
                     kind: RuleKind::Boolean { default: true },
                 },
             ],
-            win_conditions: "You escape the island aboard a seaworthy vessel, OR you are \
-accepted as chief by all three tribes and rule the island.",
+            win_conditions: "You must escape the island aboard a seaworthy vessel, OR you must \
+be accepted as chief by all three tribes and rule the island.",
             main_quest_steps: &[
                 "Survive the wreck — secure immediate shelter and fresh water",
                 "Salvage useful materials from the shipwreck",
@@ -601,8 +600,8 @@ key truth. Surface information is rarely the full picture.",
                     kind: RuleKind::Boolean { default: true },
                 },
             ],
-            win_conditions: "The Velmoor Curse is publicly exposed and its source destroyed \
-or contained. You survive with your sanity intact.",
+            win_conditions: "You must publicly expose the Velmoor Curse, destroy or contain \
+its source, and survive with your sanity intact.",
             main_quest_steps: &[
                 "Examine the photograph and visit the woman at the address",
                 "Investigate the crime scenes and identify the pattern",
@@ -674,8 +673,8 @@ slow work, insubordination, or desertion at port.",
                     kind: RuleKind::Boolean { default: true },
                 },
             ],
-            win_conditions: "The debt is paid in full and you have established at least two \
-independent trade contracts not controlled by any faction.",
+            win_conditions: "You must pay off the 40,000-credit debt in full and establish at \
+least two independent trade contracts not controlled by any faction.",
             main_quest_steps: &[
                 "Take command of the Rusted Meridian and assess the crew",
                 "Make your first successful cargo run for profit",
@@ -781,6 +780,12 @@ pub fn common_rule_definitions() -> Vec<CommonRuleDef> {
             description: "Allow the player to go back or forward in time.",
             kind: CommonRuleKind::Boolean { default: false },
             active_fragment: "", // UI-only rule (no AI prompt impact)
+        },
+        CommonRuleDef {
+            label: "AI Assistant",
+            description: "After every GM response, automatically suggest three actions you could take. Type 1, 2, or 3 to act on them, or 4 for fresh suggestions. You can always type 'assistant' or 'a' on demand.",
+            kind: CommonRuleKind::Boolean { default: false },
+            active_fragment: "", // UI-only / behavioral rule, handled in the engine, not the system prompt.
         },
 
         // ── Level: Difficulty ─────────────────────────────────────────────────

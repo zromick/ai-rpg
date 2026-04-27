@@ -28,7 +28,11 @@ export function useCharacterImage(
   const [url, setUrl] = useState('')
 
   const prompt = useMemo(() => {
-    if (!imagePrompt || !gmReply) return ''
+    if (!imagePrompt) return ''
+    // gmReply is optional. The character panel reuses this hook to render
+    // images for focused entities (clicked side characters, inventory items,
+    // locations) where there is no GM-reply context — just the entity prompt.
+    if (!gmReply) return [imagePrompt, STYLE].join(', ')
     return buildScenePrompt(imagePrompt, gmReply)
   }, [imagePrompt, gmReply])
 

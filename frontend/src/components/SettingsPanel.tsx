@@ -12,7 +12,7 @@ interface Props {
   onApply: (update: { model?: string; common_rules?: Array<{ active: boolean; current_level: number }>; scenario_rules?: boolean[] }) => void
 }
 
-const UI_ONLY_RULES = ['Character Coloring', 'Location Coloring', 'Ambient Radio', 'Narration Voice', 'Theme', 'Time Travel']
+const UI_ONLY_RULES = ['Character Coloring', 'Location Coloring', 'Ambient Radio', 'Narration Voice', 'Theme', 'Time Travel', 'AI Assistant']
 
 export function SettingsPanel({ settings, models, imageService, onImageServiceChange, onClose, onApply }: Props) {
   const [model, setModel]           = useState(settings.model)

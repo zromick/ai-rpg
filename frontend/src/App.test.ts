@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest'
 
 const MODEL_BY_ID: Record<string, string> = {
+  'meta-llama/llama-3.3-70b-instruct': 'meta-llama/Llama-3.3-70B-Instruct',
+  'qwen/qwen2.5-72b-instruct': 'Qwen/Qwen2.5-72B-Instruct',
   'meta-llama/llama-3.1-8b-instruct': 'meta-llama/Llama-3.1-8B-Instruct',
   'meta-llama/llama-3.1-8binstruct': 'meta-llama/Llama-3.1-8B-Instruct',
   'meta-llama/llama-3-1-8b-instruct': 'meta-llama/Llama-3.1-8B-Instruct',
@@ -9,12 +11,11 @@ const MODEL_BY_ID: Record<string, string> = {
   'mistralai/mistral-nemo-instruct-2407': 'mistralai/Mistral-Nemo-Instruct-2407',
   'huggingfaceh4/zephyr-7b-beta': 'HuggingFaceH4/zephyr-7b-beta',
   'nousresearch/hermes-3-llama-3.1-8b': 'NousResearch/Hermes-3-Llama-3.1-8B',
-  'chaldene/llama-3.1-8b-instruct-abliterated': 'chaldene/Llama-3.1-8B-Instruct-Abliterated',
   'mistralai/mixtral-8x7b-instruct-v0.1': 'mistralai/Mixtral-8x7B-Instruct-v0.1',
   'microsoft/phi-3-medium-128k-instruct': 'microsoft/Phi-3-medium-128k-instruct',
 }
 
-const DEFAULT_MODEL_ID = 'meta-llama/Llama-3.1-8B-Instruct'
+const DEFAULT_MODEL_ID = 'meta-llama/Llama-3.3-70B-Instruct'
 const KNOWN_MODEL_IDS = new Set(Object.values(MODEL_BY_ID))
 
 function normalizeModel(m: string): string {
@@ -46,7 +47,7 @@ describe('Model Normalization', () => {
   })
 
   it('should handle unknown models', () => {
-    expect(normalizeModel('unknown/model')).toBe('meta-llama/Llama-3.1-8B-Instruct')
+    expect(normalizeModel('unknown/model')).toBe('meta-llama/Llama-3.3-70B-Instruct')
   })
 })
 

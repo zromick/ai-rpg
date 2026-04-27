@@ -60,10 +60,10 @@ export function useGameState() {
           pendingCommand.current = false
         }
 
-        // Check for Rust errors only when: (1) state changed, (2) after command sent, or (3) every 30 sec
+        // Check for Rust errors only when: (1) state changed, (2) after command sent, or (3) every 20 sec
         const stateChanged = gd.updated_at !== lastUpdated.current || pendingCommand.current
         const timeSinceCheck = now - lastErrorCheck.current
-        if (stateChanged || timeSinceCheck > 30000) {
+        if (stateChanged || timeSinceCheck > 20000) {
           lastErrorCheck.current = now
           try {
             const er = await fetch('/api/error')
@@ -88,14 +88,18 @@ export function useGameState() {
     return () => { cancelled = true; clearInterval(id) }
   }, [gameState])
 
-  const checkError = useCallback(async (retries = 0) => {
+  // Single one-shot error fetch. Previously this retried 8 times at 600ms
+  // intervals after every command, which the player flagged as too noisy. The
+  // regular poll picks up errors on a 20s cadence; if the command immediately
+  // failed the Rust process writes ERROR_FILE before responding to the next
+  // poll, so a single check here is enough.
+  const checkError = useCallback(async () => {
     try {
       const er = await fetch('/api/error')
       if (er.ok) {
         const ed = await er.json() as { error?: string }
-        if (ed.error) { setError(ed.error); await fetch('/api/error', { method: 'DELETE' }); return }
+        if (ed.error) { setError(ed.error); await fetch('/api/error', { method: 'DELETE' }) }
       }
-      if (retries < 8) setTimeout(() => checkError(retries + 1), 600)
     } catch { /* ignore */ }
   }, [])
 
@@ -104,7 +108,10 @@ export function useGameState() {
     lastErrorCheck.current = Date.now()
     try {
       const response = await fetch('/api/command', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ player, text }) })
-      if (response.ok) checkError()
+      // Defer the post-command error check so the Rust process has time to
+      // actually write ERROR_FILE if the command failed. Without the delay
+      // we'd race and miss the error.
+      if (response.ok) setTimeout(() => { void checkError() }, 1500)
       return response.ok
     } catch {
       return false

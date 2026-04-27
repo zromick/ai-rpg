@@ -1,5 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { NARRATION_SERVICES, getNarrationService, DEFAULT_NARRATION_SERVICE_ID } from './narrationService'
+import {
+  NARRATION_SERVICES,
+  getNarrationService,
+  DEFAULT_NARRATION_SERVICE_ID,
+  isWebSpeechUrl,
+  parseWebSpeechUrl,
+} from './narrationService'
 
 global.fetch = vi.fn()
 
@@ -15,63 +21,40 @@ describe('NARRATION_SERVICES', () => {
       expect(service).toHaveProperty('name')
       expect(service).toHaveProperty('description')
       expect(service).toHaveProperty('voice')
-      expect(service).toHaveProperty('fetchAudio')
+      expect(service).toHaveProperty('kind')
       expect(typeof service.fetchAudio).toBe('function')
     })
   })
 
   it('should have unique ids', () => {
     const ids = NARRATION_SERVICES.map(s => s.id)
-    const uniqueIds = new Set(ids)
-    expect(uniqueIds.size).toBe(ids.length)
+    expect(new Set(ids).size).toBe(ids.length)
   })
 
-  it('should include speecht5 service', () => {
-    const speecht5 = NARRATION_SERVICES.find(s => s.id === 'speecht5')
-    expect(speecht5).toBeDefined()
-    expect(speecht5?.name).toBe('Microsoft SpeechT5')
-    expect(speecht5?.description).toContain('Fast and reliable')
+  it('should include at least one webspeech service', () => {
+    expect(NARRATION_SERVICES.some(s => s.kind === 'webspeech')).toBe(true)
   })
 
-  it('should include mms_tts_eng service', () => {
-    const mms = NARRATION_SERVICES.find(s => s.id === 'mms_tts_eng')
-    expect(mms).toBeDefined()
-    expect(mms?.name).toBe('Meta MMS-TTS English')
-  })
-
-  it('should include bark_small service', () => {
-    const bark = NARRATION_SERVICES.find(s => s.id === 'bark_small')
-    expect(bark).toBeDefined()
-    expect(bark?.name).toBe('Suno Bark Small')
-  })
-
-  it('should include espnet_vits service', () => {
-    const espnet = NARRATION_SERVICES.find(s => s.id === 'espnet_vits')
-    expect(espnet).toBeDefined()
-    expect(espnet?.name).toBe('ESPnet VITS (LJSpeech)')
+  it('should include at least one remote (Pollinations) service', () => {
+    expect(NARRATION_SERVICES.some(s => s.kind === 'remote')).toBe(true)
   })
 })
 
 describe('DEFAULT_NARRATION_SERVICE_ID', () => {
-  it('should be defined', () => {
-    expect(DEFAULT_NARRATION_SERVICE_ID).toBeDefined()
-  })
-
   it('should match an existing service id', () => {
-    const ids = NARRATION_SERVICES.map(s => s.id)
-    expect(ids).toContain(DEFAULT_NARRATION_SERVICE_ID)
+    expect(NARRATION_SERVICES.map(s => s.id)).toContain(DEFAULT_NARRATION_SERVICE_ID)
   })
 
-  it('should be speecht5', () => {
-    expect(DEFAULT_NARRATION_SERVICE_ID).toBe('speecht5')
+  it('should be a webspeech provider so a missing key never blocks the user', () => {
+    const svc = getNarrationService(DEFAULT_NARRATION_SERVICE_ID)
+    expect(svc.kind).toBe('webspeech')
   })
 })
 
 describe('getNarrationService', () => {
   it('should return service with matching id', () => {
-    const service = getNarrationService('speecht5')
-    expect(service.id).toBe('speecht5')
-    expect(service.name).toBe('Microsoft SpeechT5')
+    const service = getNarrationService('webspeech_default')
+    expect(service.id).toBe('webspeech_default')
   })
 
   it('should return first service for unknown id', () => {
@@ -84,81 +67,89 @@ describe('getNarrationService', () => {
     expect(service).toBe(NARRATION_SERVICES[0])
   })
 
-  it('should return correct service for each known id', () => {
-    const ids = ['speecht5', 'mms_tts_eng', 'bark_small', 'espnet_vits']
-    
-    ids.forEach(id => {
-      const service = getNarrationService(id)
-      expect(service.id).toBe(id)
+  describe('Web Speech provider', () => {
+    it('returns a speechSynthesis:// sentinel URL with rate + pitch', async () => {
+      const url = await getNarrationService('webspeech_default').fetchAudio('hello')
+      expect(isWebSpeechUrl(url)).toBe(true)
+      const parsed = parseWebSpeechUrl(url)
+      expect(parsed.voice).toBe('default')
+      expect(parsed.rate).toBe(1)
+      expect(parsed.pitch).toBe(1)
+    })
+
+    it('low-voice variant has reduced pitch', async () => {
+      const url = await getNarrationService('webspeech_low').fetchAudio('hello')
+      const parsed = parseWebSpeechUrl(url)
+      expect(parsed.pitch).toBeLessThan(1)
+    })
+
+    it('fast-reader variant has increased rate', async () => {
+      const url = await getNarrationService('webspeech_fast').fetchAudio('hello')
+      const parsed = parseWebSpeechUrl(url)
+      expect(parsed.rate).toBeGreaterThan(1)
+    })
+
+    it('does not call fetch (network)', async () => {
+      const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response())
+      await getNarrationService('webspeech_default').fetchAudio('hello')
+      expect(fetchSpy).not.toHaveBeenCalled()
+      fetchSpy.mockRestore()
     })
   })
 
-  describe('fetchAudio', () => {
+  describe('Pollinations remote provider', () => {
     beforeEach(() => {
       vi.resetAllMocks()
       vi.stubGlobal('URL', {
-        createObjectURL: vi.fn(() => 'blob:test-url'),
+        createObjectURL: vi.fn(() => 'blob:remote-url'),
         revokeObjectURL: vi.fn(),
       })
     })
 
-    it('should call fetch with correct endpoint', async () => {
-      const mockBlob = new Blob(['audio'], { type: 'audio/wav' })
-      const mockResponse = {
-        ok: true,
-        blob: vi.fn().mockResolvedValue(mockBlob),
-      }
-      
-      global.fetch = vi.fn().mockResolvedValue(mockResponse as unknown as Response)
+    it('POSTs to /api/tts with the chosen voice + text', async () => {
+      const mockBlob = new Blob(['audio'], { type: 'audio/mpeg' })
+      global.fetch = vi.fn().mockResolvedValue({ ok: true, blob: vi.fn().mockResolvedValue(mockBlob) } as unknown as Response)
 
-      const service = getNarrationService('speecht5')
-      await service.fetchAudio('Test text')
+      await getNarrationService('pollinations_alloy').fetchAudio('Test text')
 
-      expect(global.fetch).toHaveBeenCalledWith(
-        '/api/tts',
-        expect.objectContaining({
-          method: 'POST',
-          headers: expect.objectContaining({ 'Content-Type': 'application/json' }),
-          body: JSON.stringify({ model: 'microsoft/speecht5_tts', text: 'Test text' }),
-        })
-      )
+      const call = (global.fetch as any).mock.calls[0]
+      expect(call[0]).toBe('/api/tts')
+      expect(call[1].method).toBe('POST')
+      const body = JSON.parse(call[1].body)
+      expect(body.voice).toBe('alloy')
+      expect(body.text).toBe('Test text')
     })
 
-    it('should throw error on 503 status', async () => {
+    it('returns a blob URL on success', async () => {
+      const mockBlob = new Blob(['audio'], { type: 'audio/mpeg' })
+      global.fetch = vi.fn().mockResolvedValue({ ok: true, blob: vi.fn().mockResolvedValue(mockBlob) } as unknown as Response)
+
+      const url = await getNarrationService('pollinations_alloy').fetchAudio('hi')
+      expect(url).toContain('blob:')
+    })
+
+    it('rejects on non-OK response', async () => {
       global.fetch = vi.fn().mockResolvedValue({
-        ok: false,
-        status: 503,
-        text: vi.fn().mockResolvedValue('Model loading'),
+        ok: false, status: 500, text: vi.fn().mockResolvedValue('boom'),
       } as unknown as Response)
 
-      const service = getNarrationService('speecht5')
-
-      await expect(service.fetchAudio('Test')).rejects.toThrow('Model is loading')
+      await expect(getNarrationService('pollinations_alloy').fetchAudio('hi'))
+        .rejects.toThrow('TTS error 500')
     })
+  })
+})
 
-    it('should throw error on 401 status', async () => {
-      global.fetch = vi.fn().mockResolvedValue({
-        ok: false,
-        status: 401,
-        text: vi.fn().mockResolvedValue('Invalid key'),
-      } as unknown as Response)
+describe('isWebSpeechUrl / parseWebSpeechUrl', () => {
+  it('detects sentinel URLs', () => {
+    expect(isWebSpeechUrl('speechSynthesis://default?rate=1&pitch=1')).toBe(true)
+    expect(isWebSpeechUrl('blob:abc')).toBe(false)
+    expect(isWebSpeechUrl('')).toBe(false)
+  })
 
-      const service = getNarrationService('speecht5')
-
-      await expect(service.fetchAudio('Test')).rejects.toThrow('Invalid HF API key')
-    })
-
-    it('should return blob URL on success', async () => {
-      const mockBlob = new Blob(['audio'], { type: 'audio/wav' })
-      global.fetch = vi.fn().mockResolvedValue({
-        ok: true,
-        blob: vi.fn().mockResolvedValue(mockBlob),
-      } as unknown as Response)
-
-      const service = getNarrationService('speecht5')
-      const result = await service.fetchAudio('Test')
-
-      expect(result).toContain('blob:')
-    })
+  it('parses rate, pitch, and voice', () => {
+    const parsed = parseWebSpeechUrl('speechSynthesis://my%20voice?rate=1.25&pitch=0.7')
+    expect(parsed.voice).toBe('my voice')
+    expect(parsed.rate).toBe(1.25)
+    expect(parsed.pitch).toBe(0.7)
   })
 })

@@ -1,4 +1,5 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
+import { useSnackbar } from './Snackbar'
 
 interface Props {
   googlePlayUser: { id: string; name: string } | null
@@ -48,6 +49,10 @@ export function TitleScreen({ googlePlayUser, googleDisplayName, onGooglePlayLog
   const [isLoadingGoogle, setIsLoadingGoogle] = useState(false)
   const [showLoginError, setShowLoginError] = useState(false)
   const [deleteConfirm, setDeleteConfirm] = useState(false)
+  const { snackbar } = useSnackbar()
+  // Tracks whether the in-flight login attempt has settled, so the timeout
+  // doesn't fire a stale "failed" toast after a successful callback.
+  const loginSettledRef = useRef(true)
 
   useEffect(() => {
     const script = document.createElement('script')
@@ -65,40 +70,70 @@ export function TitleScreen({ googlePlayUser, googleDisplayName, onGooglePlayLog
     }
   }, [googlePlayUser])
 
-  const handleGoogleLogin = useCallback(() => {
-    setIsLoadingGoogle(true)
-    setShowLoginError(false)
-
-    const client = window.google?.accounts?.oauth2?.initTokenClient({
-      client_id: GOOGLE_CLIENT_ID,
-      scope: 'openid email profile https://www.googleapis.com/auth/games',
-      callback: async (response) => {
-        if (response.access_token) {
-          const name = await getGoogleUserInfo(response.access_token)
-          onGooglePlayLogin({
-            id: response.access_token,
-            name
-          })
-        } else {
-          setShowLoginError(true)
-        }
-        setIsLoadingGoogle(false)
-      }
-    })
-
-    if (client) {
-      client.requestAccessToken()
+  const finishLogin = useCallback((kind: 'success' | 'failure', message: string) => {
+    if (loginSettledRef.current) return
+    loginSettledRef.current = true
+    setIsLoadingGoogle(false)
+    if (kind === 'success') {
+      snackbar.success(message)
     } else {
-      setIsLoadingGoogle(false)
       setShowLoginError(true)
+      snackbar.error(message)
+    }
+  }, [snackbar])
+
+  const handleGoogleLogin = useCallback(() => {
+    // Hard-fail before we even try if the build doesn't have a client id.
+    if (!GOOGLE_CLIENT_ID) {
+      snackbar.error('Login failed — Google Client ID is not configured. Add VITE_GOOGLE_CLIENT_ID to your .env.')
+      setShowLoginError(true)
+      return
     }
 
-    setTimeout(() => {
-      if (isLoadingGoogle) {
-        setIsLoadingGoogle(false)
-      }
-    }, 5000)
-  }, [onGooglePlayLogin])
+    setIsLoadingGoogle(true)
+    setShowLoginError(false)
+    loginSettledRef.current = false
+
+    // 8s timeout: if Google's popup is blocked, the user dismisses it, or
+    // the gsi script never loaded, we still resolve to a clear failure
+    // instead of an indefinite "Signing in..." spinner.
+    const timeoutId = window.setTimeout(() => {
+      finishLogin('failure', 'Login failed — timed out waiting for Google.')
+    }, 8000)
+
+    let client: { requestAccessToken: () => void } | undefined
+    try {
+      client = window.google?.accounts?.oauth2?.initTokenClient({
+        client_id: GOOGLE_CLIENT_ID,
+        scope: 'openid email profile https://www.googleapis.com/auth/games',
+        callback: async (response) => {
+          window.clearTimeout(timeoutId)
+          if (response.access_token) {
+            try {
+              const name = await getGoogleUserInfo(response.access_token)
+              onGooglePlayLogin({ id: response.access_token, name })
+              finishLogin('success', `Signed in as ${name}`)
+            } catch {
+              finishLogin('failure', 'Login failed — could not fetch your Google profile.')
+            }
+          } else {
+            finishLogin('failure', 'Login failed — Google did not return a token.')
+          }
+        },
+      })
+    } catch {
+      window.clearTimeout(timeoutId)
+      finishLogin('failure', 'Login failed — Google sign-in script could not initialize.')
+      return
+    }
+
+    if (!client) {
+      window.clearTimeout(timeoutId)
+      finishLogin('failure', 'Login failed — Google sign-in script not loaded yet. Try again in a moment.')
+      return
+    }
+    client.requestAccessToken()
+  }, [onGooglePlayLogin, finishLogin, snackbar])
 
   return (
     <div className="title-screen">

@@ -32,5 +32,7 @@ yarn-error.log*
 command_queue.json
 game_state.json
 setup_state.json
+last_error.json
+prompts-log.txt
 .claude
 nul

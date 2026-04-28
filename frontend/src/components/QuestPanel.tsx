@@ -8,6 +8,10 @@ interface Props {
   mainQuestStepStatus?: QuestStepStatus[]
   sideQuests: SideQuest[]
   history?: string[]
+  /** Fires when a user clicks a quest step. The parent uses this to (a) ask
+   *  the AI for fresh suggestions and (b) refresh the character image so the
+   *  art reflects the moment the player is contemplating. */
+  onTaskClick?: (taskText: string) => void
 }
 
 // Infer if a quest step is completed based on history
@@ -32,7 +36,7 @@ function isStepCompleted(step: string, history: string[]): boolean {
   return false
 }
 
-export function QuestPanel({ mainQuest, mainQuestSteps, mainQuestStepStatus, sideQuests, history = [] }: Props) {
+export function QuestPanel({ mainQuest, mainQuestSteps, mainQuestStepStatus, sideQuests, history = [], onTaskClick }: Props) {
   const [showMainSteps, setShowMainSteps] = useState(true)
   const [showSideSteps, setShowSideSteps] = useState(true)
 
@@ -69,7 +73,14 @@ export function QuestPanel({ mainQuest, mainQuestSteps, mainQuestStepStatus, sid
         {showMainSteps && mainQuestStepsWithCompletion.length > 0 && (
           <ol className="quest-steps">
             {mainQuestStepsWithCompletion.map((item, i) => (
-              <li key={i} className={`quest-step ${item.completed ? 'quest-step--completed' : ''}`}>{item.step}</li>
+              <li
+                key={i}
+                className={`quest-step ${item.completed ? 'quest-step--completed' : ''} ${onTaskClick ? 'quest-step--clickable' : ''}`}
+                onClick={onTaskClick ? () => onTaskClick(item.step) : undefined}
+                role={onTaskClick ? 'button' : undefined}
+                tabIndex={onTaskClick ? 0 : undefined}
+                title={onTaskClick ? 'Refresh image and ask the AI for suggestions' : undefined}
+              >{item.step}</li>
             ))}
           </ol>
         )}
@@ -92,7 +103,14 @@ export function QuestPanel({ mainQuest, mainQuestSteps, mainQuestStepStatus, sid
               {showSideSteps && q.steps.length > 0 && (
                 <ol className="quest-steps quest-steps--side">
                   {q.steps.map((item, j) => (
-                    <li key={j} className={`quest-step ${item.completed ? 'quest-step--completed' : ''}`}>{item.step}</li>
+                    <li
+                      key={j}
+                      className={`quest-step ${item.completed ? 'quest-step--completed' : ''} ${onTaskClick ? 'quest-step--clickable' : ''}`}
+                      onClick={onTaskClick ? () => onTaskClick(item.step) : undefined}
+                      role={onTaskClick ? 'button' : undefined}
+                      tabIndex={onTaskClick ? 0 : undefined}
+                      title={onTaskClick ? 'Refresh image and ask the AI for suggestions' : undefined}
+                    >{item.step}</li>
                   ))}
                 </ol>
               )}

@@ -42,8 +42,8 @@ describe('ServicePicker', () => {
 
 describe('getService', () => {
   it('returns service by id', () => {
-    const service = getService('hf_flux_dev')
-    expect(service.id).toBe('hf_flux_dev')
+    const service = getService('pollinations_dark_fantasy')
+    expect(service.id).toBe('pollinations_dark_fantasy')
   })
 
   it('returns first service for unknown id', () => {
@@ -60,14 +60,13 @@ describe('getService', () => {
 describe('IMAGE_SERVICES', () => {
   it('contains all expected service ids', () => {
     const ids = IMAGE_SERVICES.map(s => s.id)
-    expect(ids).toContain('hf_flux_schnell')
-    expect(ids).toContain('hf_flux_dev')
-    expect(ids).toContain('hf_dark_fantasy')
-    expect(ids).toContain('hf_painterly')
-    expect(ids).toContain('hf_anime')
-    expect(ids).toContain('hf_portrait')
-    expect(ids).toContain('hf_ink_sketch')
-    expect(ids).toContain('hf_widescreen')
+    expect(ids).toContain('pollinations_default')
+    expect(ids).toContain('pollinations_dark_fantasy')
+    expect(ids).toContain('pollinations_painterly')
+    expect(ids).toContain('pollinations_anime')
+    expect(ids).toContain('pollinations_portrait')
+    expect(ids).toContain('pollinations_ink_sketch')
+    expect(ids).toContain('pollinations_widescreen')
   })
 
   it('has fetchImage function for each service', () => {

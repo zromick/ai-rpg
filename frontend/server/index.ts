@@ -12,7 +12,11 @@ process.on('warning', (warning) => {
 const __filename = fileURLToPath(import.meta.url)
 const __dirname  = path.dirname(__filename)
 
-dotenv.config({ path: path.resolve(__dirname, '../.env') })
+// __dirname is frontend/server/. The repo's canonical .env lives at the project root,
+// so we walk up two levels. Fall back to frontend/.env if a workspace puts one there.
+const ROOT_ENV     = path.resolve(__dirname, '../../.env')
+const FRONTEND_ENV = path.resolve(__dirname, '../.env')
+dotenv.config({ path: fs.existsSync(ROOT_ENV) ? ROOT_ENV : FRONTEND_ENV })
 const app        = express()
 const PORT       = 3001
 
@@ -25,84 +29,80 @@ const ERROR_PATH = path.resolve(PROJECT_ROOT, 'last_error.json')
 app.use(cors())
 app.use(express.json())
 
-const HF_API = 'https://api-inference.huggingface.co/models'
-const TOKEN = process.env.HF_TOKEN ?? ''
-
-app.post('/api/tts', async (req: Request, res: Response) => {
-  const { model, text } = req.body as { model?: string; text?: string }
-  if (!model || !text) { res.status(400).json({ error: 'Missing model or text' }); return }
-  if (!TOKEN) { res.status(500).json({ error: 'HF API key not configured' }); return }
-
-  try {
-    const response = await fetch(`${HF_API}/${model}`, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${TOKEN}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ inputs: text }),
-    })
-
-    if (!response.ok) {
-      const err = await response.text()
-      if (response.status === 503) {
-        res.status(503).json({ error: 'Model is loading. Try again in a few seconds.' })
-        return
-      }
-      if (response.status === 401) {
-        res.status(401).json({ error: 'Invalid HF API key.' })
-        return
-      }
-      res.status(response.status).json({ error: `HF API error: ${err}` })
-      return
-    }
-
-    const buffer = await response.arrayBuffer()
-    res.set('Content-Type', 'audio/mpeg')
-    res.send(Buffer.from(buffer))
-  } catch (e) {
-    res.status(500).json({ error: String(e) })
-  }
-})
-
-const IMAGE_STYLE = 'medieval fantasy, dramatic lighting, painterly, cinematic composition, detailed, no text, no watermark, no UI'
+// ── Free image: Pollinations.ai ────────────────────────────────────────────
+// https://image.pollinations.ai/prompt/{prompt}?seed=&width=&height=&nologo=true&private=true
+const POLLINATIONS_IMAGE = 'https://image.pollinations.ai/prompt'
 
 app.post('/api/image', async (req: Request, res: Response) => {
-  const { model, prompt, seed, width, height, num_inference_steps } = req.body as {
-    model?: string
+  const { prompt, seed, width, height } = req.body as {
     prompt?: string
     seed?: number
     width?: number
     height?: number
-    num_inference_steps?: number
   }
-  if (!model || !prompt) { res.status(400).json({ error: 'Missing model or prompt' }); return }
-  if (!TOKEN) { res.status(500).json({ error: 'HF API key not configured' }); return }
+  if (!prompt) { res.status(400).json({ error: 'Missing prompt' }); return }
 
+  const promptPreview = prompt.slice(0, 80).replace(/\s+/g, ' ')
+  const startedAt = Date.now()
+  console.log(`[image-call] → seed=${seed ?? 0} ${width ?? 768}x${height ?? 512} prompt="${promptPreview}…"`)
   try {
-    const response = await fetch(`${HF_API}/${model}`, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${TOKEN}`,
-        'Content-Type': 'application/json',
-        'X-Use-Cache': 'false',
-      },
-      body: JSON.stringify({
-        inputs: prompt,
-        parameters: { seed: seed ?? 0, width: width ?? 768, height: height ?? 512, num_inference_steps: num_inference_steps ?? 4 },
-      }),
+    const params = new URLSearchParams({
+      seed: String(seed ?? 0),
+      width: String(width ?? 768),
+      height: String(height ?? 512),
+      nologo: 'true',
+      private: 'true',
     })
+    const url = `${POLLINATIONS_IMAGE}/${encodeURIComponent(prompt)}?${params.toString()}`
+    const response = await fetch(url)
 
     if (!response.ok) {
-      const err = await response.text()
-      res.status(response.status).json({ error: `HF API error: ${response.status}: ${err}` })
+      const err = await response.text().catch(() => 'unknown')
+      console.log(`[image-call] ✗ FAIL status=${response.status} elapsed=${Date.now() - startedAt}ms err="${err.slice(0, 200)}"`)
+      res.status(response.status).json({ error: `Pollinations image error ${response.status}: ${err}` })
       return
     }
 
     const buffer = await response.arrayBuffer()
-    res.set('Content-Type', 'image/png')
+    console.log(`[image-call] ✓ ok bytes=${buffer.byteLength} elapsed=${Date.now() - startedAt}ms`)
+    res.set('Content-Type', response.headers.get('Content-Type') ?? 'image/png')
     res.send(Buffer.from(buffer))
   } catch (e) {
+    console.log(`[image-call] ✗ THROW elapsed=${Date.now() - startedAt}ms err="${String(e).slice(0, 200)}"`)
+    res.status(500).json({ error: String(e) })
+  }
+})
+
+// ── Free TTS: Pollinations.ai ──────────────────────────────────────────────
+// https://text.pollinations.ai/{prompt}?model=openai-audio&voice=alloy
+// Returns audio/mpeg directly.
+const POLLINATIONS_TTS = 'https://text.pollinations.ai'
+
+app.post('/api/tts', async (req: Request, res: Response) => {
+  const { voice, text } = req.body as { voice?: string; text?: string }
+  if (!text) { res.status(400).json({ error: 'Missing text' }); return }
+
+  const textPreview = text.slice(0, 80).replace(/\s+/g, ' ')
+  const startedAt = Date.now()
+  console.log(`[tts-call] → voice=${voice || 'alloy'} chars=${text.length} text="${textPreview}…"`)
+  try {
+    const params = new URLSearchParams({ model: 'openai-audio', voice: voice || 'alloy' })
+    const url = `${POLLINATIONS_TTS}/${encodeURIComponent(text)}?${params.toString()}`
+    const response = await fetch(url)
+
+    if (!response.ok) {
+      const err = await response.text().catch(() => 'unknown')
+      console.log(`[tts-call] ✗ FAIL status=${response.status} elapsed=${Date.now() - startedAt}ms err="${err.slice(0, 200)}"`)
+      res.status(response.status).json({ error: `Pollinations TTS error ${response.status}: ${err}` })
+      return
+    }
+
+    const buffer = await response.arrayBuffer()
+    console.log(`[tts-call] ✓ ok bytes=${buffer.byteLength} elapsed=${Date.now() - startedAt}ms`)
+    res.set('Content-Type', response.headers.get('Content-Type') ?? 'audio/mpeg')
+    res.send(Buffer.from(buffer))
+  } catch (e) {
+    console.log(`[tts-call] ✗ THROW elapsed=${Date.now() - startedAt}ms err="${String(e).slice(0, 200)}"`)
     res.status(500).json({ error: String(e) })
   }
 })

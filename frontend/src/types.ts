@@ -21,6 +21,7 @@ export interface PlayerState {
   romance_mode?: boolean; win_mode?: boolean
   inventory: InventoryItem[]; side_characters: SideCharacter[]; locations: Location[]
   current_location?: string; start_datetime?: string; current_datetime?: string; end_datetime?: string; turn: number; history: HistoryMessage[]
+  assistant_options?: string[]
 }
 
 export interface SideQuest { title: string; description: string; steps?: string[] }

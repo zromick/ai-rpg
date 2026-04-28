@@ -1,6 +1,7 @@
 // src/components/Terminal.tsx
 import { useEffect, useRef, useState, KeyboardEvent, ReactNode } from 'react'
 import type { HistoryMessage, SideQuest, InventoryItem, SideCharacter, Location } from '../types'
+import { isStopword } from '../highlightStopwords'
 
 const LOCAL_CMDS = new Set([
   'quest','q',
@@ -14,6 +15,10 @@ const LOCAL_CMDS = new Set([
   'title','t',
   'restart','r',
   'delete','del',
+  // assistant/a is forwarded to the backend, but we still intercept it here
+  // so we can surface immediate "Asking…" feedback (the Rust handler doesn't
+  // echo a user message back, so the default pending-entry path would stall).
+  'assistant','a',
 ])
 
 interface Props {
@@ -40,6 +45,11 @@ sendCommand: (player: string, text: string) => Promise<boolean>
   currentNickname?: string
   nicknames?: string[]
   isGameLoading?: boolean
+  /** AI Assistant: the three context-aware actions Rust most recently
+   *  suggested for the player. Empty when none are pending. Selecting 1/2/3
+   *  acts on them; 4 requests fresh suggestions; 'assistant' / 'a' triggers
+   *  on demand. */
+  assistantOptions?: string[]
 }
 
 interface LocalMsg   { kind: 'local';   content: string; afterIndex: number }
@@ -58,7 +68,7 @@ export function Terminal({ history, playerName, isActive, mainQuest, sideQuests,
   promptCount, totalChars, inventory, sideCharacters, locations,
   characterColoringEnabled, locationColoringEnabled, sendCommand,
   onOpenSettings, onTitle, onRestart, onDelete, startTime, currentTime, endTime,
-  currentNickname, nicknames: _nicknames, isGameLoading }: Props) {
+  currentNickname, nicknames: _nicknames, isGameLoading, assistantOptions }: Props) {
 
   const bottomRef = useRef<HTMLDivElement>(null)
   const inputRef  = useRef<HTMLInputElement>(null)
@@ -68,9 +78,48 @@ export function Terminal({ history, playerName, isActive, mainQuest, sideQuests,
   const [histIdx, setHistIdx]             = useState(-1)
   const [sending, setSending]             = useState(false)
   const [confirmAction, setConfirmAction] = useState<'restart' | 'title' | 'delete' | null>(null)
+  const [assistantPending, setAssistantPending] = useState(false)
   const prevHistLen = useRef(history.length)
+  const prevAssistantOptionsRef = useRef<string[] | undefined>(assistantOptions)
+
+  // Clear the "Asking the AI…" indicator the moment the backend writes a
+  // fresh assistant_options array (even an empty one — empty means the call
+  // ran and the snackbar is showing the failure).
+  useEffect(() => {
+    const prev = prevAssistantOptionsRef.current
+    const curr = assistantOptions
+    const prevLen = prev?.length ?? 0
+    const currLen = curr?.length ?? 0
+    if (assistantPending && (currLen > 0 || (prev !== curr && currLen === 0 && prevLen > 0))) {
+      setAssistantPending(false)
+    }
+    prevAssistantOptionsRef.current = curr
+  }, [assistantOptions, assistantPending])
+
+  // Safety net: if no response in 12s, drop the indicator so the input stays
+  // usable. The snackbar should already be showing the failure by then.
+  useEffect(() => {
+    if (!assistantPending) return
+    const t = setTimeout(() => setAssistantPending(false), 12000)
+    return () => clearTimeout(t)
+  }, [assistantPending])
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [history, extra])
+
+  // Window-scoped event the GameStartSplash dispatches when the player clicks
+  // one of the suggested first moves. Pre-fills the input without sending so
+  // the player can edit before pressing Enter.
+  useEffect(() => {
+    const onPreload = (e: Event) => {
+      const detail = (e as CustomEvent<{ text: string }>).detail
+      if (detail?.text) {
+        setVal(detail.text)
+        inputRef.current?.focus()
+      }
+    }
+    window.addEventListener('preload-terminal-input', onPreload as EventListener)
+    return () => window.removeEventListener('preload-terminal-input', onPreload as EventListener)
+  }, [])
   useEffect(() => {
     if (isActive && inputRef.current) {
       inputRef.current.focus()
@@ -127,13 +176,19 @@ export function Terminal({ history, playerName, isActive, mainQuest, sideQuests,
     else if (c === 'stats' || c === 's') {
       const lines = [`📊 STATS — ${playerName}`, `Total Prompts: ${promptCount}`, `Total Chars: ${totalChars}`, `Start Time: ${startTime || '-'}`, `Current Time: ${currentTime || '-'}`, `End Time: ${endTime || '-'}`]
       if (history.length > 0) {
-        lines.push('', '--- Prompt History ---')
-        history.forEach((msg, i) => {
-          if (msg.role === 'user') {
+        // Number only the user prompts the player actually typed — skip both
+        // assistant turns (so the counter doesn't jump 1, 3, 5...) and the
+        // synthetic "Begin the game…" intro that the GM is bootstrapped with.
+        const userPrompts = history.filter(m =>
+          m.role === 'user' && !m.content.startsWith('Begin the game')
+        )
+        if (userPrompts.length > 0) {
+          lines.push('', '--- Prompt History ---')
+          userPrompts.forEach((msg, i) => {
             const content = msg.content.length > 60 ? msg.content.slice(0, 60) + '...' : msg.content
             lines.push(`[${i + 1}] ${content} (${msg.content.length} chars)`)
-          }
-        })
+          })
+        }
       }
       pushLocal(lines.join('\n'))
     }
@@ -150,7 +205,15 @@ export function Terminal({ history, playerName, isActive, mainQuest, sideQuests,
     else if (c === 'delete' || c === 'del')
       setConfirmAction('delete')
     else if (c === 'help' || c === '?' || c === 'h')
-      pushLocal('COMMANDS\n  quest/q         — main quest\n  sidequests/sq   — side quests\n  inventory/inv   — your items\n  npcs/n          — people met\n  locations/map   — places visited\n  stats/s         — prompt counts\n  settings/se     — view/edit GM rules\n  restart/r       — restart your game\n  delete/del      — delete character and save\n  title/t         — return to title\n  h/?             — show this help')
+      pushLocal('COMMANDS\n  assistant/a     — ask the AI for 3 suggested actions\n  delete/del      — delete character and save\n  help/h/?        — show this help\n  inventory/inv   — your items\n  locations/map   — places visited\n  npcs/n          — people met\n  quest/q         — main quest\n  restart/r       — restart your game\n  settings/se     — view/edit GM rules\n  sidequests/sq   — side quests\n  stats/s         — prompt counts\n  title/t         — return to title')
+    else if (c === 'assistant' || c === 'a') {
+      // Forward to the Rust backend so it can populate `assistant_options`.
+      // We track the pending state in `assistantPending` (instead of a
+      // permanent local entry) so the indicator clears automatically when
+      // assistantOptions updates or the safety-net timeout fires.
+      setAssistantPending(true)
+      void sendCommand(playerName, 'assistant')
+    }
     return true
   }
 
@@ -209,17 +272,22 @@ export function Terminal({ history, playerName, isActive, mainQuest, sideQuests,
   }
 
   // Build interleaved render items: history messages with extras inserted at correct positions
-  // Skip duplicate consecutive assistant messages
+  // Skip duplicate consecutive assistant messages.
+  //
+  // We compare on a normalised form (lowercase, whitespace stripped) so a
+  // trailing-space difference between two GM replies doesn't defeat the
+  // dedup. The Rust-side dedup already trims most exact duplicates, but the
+  // model occasionally emits two near-identical replies in a row and users
+  // saw the same passage rendered twice.
+  const normalize = (s: string) => s.replace(/\s+/g, '').toLowerCase()
   const renderItems: RenderItem[] = []
   let extraIdx = 0
-  let lastAssistantContent = ''
+  let lastAssistantNorm = ''
   for (let i = 0; i < history.length; i++) {
-    // Skip duplicate consecutive assistant messages
-    if (history[i].role === 'assistant' && history[i].content === lastAssistantContent) {
-      continue
-    }
     if (history[i].role === 'assistant') {
-      lastAssistantContent = history[i].content
+      const n = normalize(history[i].content)
+      if (n === lastAssistantNorm) continue
+      lastAssistantNorm = n
     }
     renderItems.push({ type: 'history', msg: history[i], key: `h${i}` })
     // Insert any extras that should appear after this history index
@@ -292,6 +360,57 @@ export function Terminal({ history, playerName, isActive, mainQuest, sideQuests,
           </div>
         )}
 
+        {assistantPending && (!assistantOptions || assistantOptions.length === 0) && (
+          <div className="terminal-msg terminal-msg--pending">
+            <span className="terminal-prompt pending">
+              <span className="prompt-symbol">{'>'}</span>{' '}
+              <span className="prompt-text">✦ Asking the AI for suggestions</span>
+              <span className="pending-dots">…</span>
+            </span>
+          </div>
+        )}
+
+        {assistantOptions && assistantOptions.length > 0 && !confirmAction && (
+          <div className="terminal-msg terminal-msg--local terminal-msg--assistant">
+            <div className="assistant-card">
+              <div className="assistant-card-header">✦ ASSISTANT — Suggested Moves</div>
+              <p className="assistant-card-hint">Click an option to load it into the command box, then edit and press Enter to send.</p>
+              <ul className="assistant-card-options">
+                {assistantOptions.map((opt, i) => (
+                  <li key={i}>
+                    <button
+                      type="button"
+                      className="assistant-card-option"
+                      onClick={() => {
+                        setVal(opt)
+                        inputRef.current?.focus()
+                      }}
+                      title="Load this move into the command box"
+                    >
+                      <span className="assistant-card-num">{i + 1}</span>
+                      <span className="assistant-card-text">{opt}</span>
+                    </button>
+                  </li>
+                ))}
+                <li>
+                  <button
+                    type="button"
+                    className="assistant-card-option assistant-card-option--more"
+                    onClick={() => {
+                      setAssistantPending(true)
+                      void sendCommand(playerName, 'assistant')
+                    }}
+                    title="Ask the AI for three different suggestions"
+                  >
+                    <span className="assistant-card-num">4</span>
+                    <span className="assistant-card-text">Suggest three different options</span>
+                  </button>
+                </li>
+              </ul>
+            </div>
+          </div>
+        )}
+
         <div ref={bottomRef} />
       </div>
 
@@ -307,69 +426,84 @@ export function Terminal({ history, playerName, isActive, mainQuest, sideQuests,
   )
 }
 
-// Highlight character/location names in GM text
+// Highlight character/location names in GM text.
+//
+// Each highlight is tagged with a `kind` so click routing can pick the right
+// tab in the right pane deterministically — without re-checking the matched
+// substring against the lists, which used to misclassify when a character
+// name and a location name overlapped (e.g. "Aldric" + "Aldric's Tavern").
+//
+// We also drop common English stopwords ("The", "You", "I", ...) so a stale
+// extraction can't poison the highlighter.
+type HighlightKind = 'character' | 'location'
+interface Highlight { name: string; color: string | undefined; kind: HighlightKind }
+
 function highlightNames(text: string, characters: SideCharacter[], locations: Location[]): ReactNode {
-  // Build list of names to highlight with their colors
-  const highlights: Array<{ name: string; color: string | undefined }> = []
+  const highlights: Highlight[] = []
 
   for (const c of characters) {
-    if (c.name) {
-      highlights.push({ name: c.name, color: c.outline_color })
-      // Also highlight first name and last name separately
-      const parts = c.name.split(/\s+/)
-      if (parts.length > 1) {
-        highlights.push({ name: parts[0], color: c.outline_color })
-        highlights.push({ name: parts[parts.length - 1], color: c.outline_color })
-      }
+    if (!c.name) continue
+    highlights.push({ name: c.name, color: c.outline_color, kind: 'character' })
+    const parts = c.name.split(/\s+/)
+    if (parts.length > 1) {
+      // First / last names inherit the character's color and kind.
+      highlights.push({ name: parts[0], color: c.outline_color, kind: 'character' })
+      highlights.push({ name: parts[parts.length - 1], color: c.outline_color, kind: 'character' })
     }
   }
   for (const l of locations) {
-    if (l.name) {
-      highlights.push({ name: l.name, color: l.outline_color })
-    }
+    if (l.name) highlights.push({ name: l.name, color: l.outline_color, kind: 'location' })
   }
 
-  // Sort by length (longest first) to match longer names first
+  // Longest first so "Aldric Shadowmere" beats "Aldric".
   highlights.sort((a, b) => b.name.length - a.name.length)
 
-  // Remove duplicates and substrings that would conflict
+  // Drop stopwords, single chars, and case-insensitive duplicates (keeping
+  // the first kept entry, which is the longest match for that lowercased
+  // form thanks to the sort above).
   const seen = new Set<string>()
-  const uniqueHighlights = highlights.filter(h => {
+  const unique: Highlight[] = []
+  for (const h of highlights) {
+    if (isStopword(h.name)) continue
     const lower = h.name.toLowerCase()
-    if (seen.has(lower)) return false
+    if (seen.has(lower)) continue
     seen.add(lower)
-    return true
-  })
+    unique.push(h)
+  }
 
-  // Build regex pattern
-  const names = uniqueHighlights.map(h => h.name).filter(n => n.length > 1)
-  if (names.length === 0) return text
+  if (unique.length === 0) return text
 
-  const escaped = names.map(n => n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+  const escaped = unique.map(h => h.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
   const pattern = new RegExp(`\\b(${escaped.join('|')})\\b`, 'gi')
 
-  // Split and rebuild with highlights
   const parts: React.ReactNode[] = []
   let lastEnd = 0
   let match: RegExpExecArray | null
 
   while ((match = pattern.exec(text)) !== null) {
-    if (match.index > lastEnd) {
-      parts.push(text.slice(lastEnd, match.index))
-    }
+    if (match.index > lastEnd) parts.push(text.slice(lastEnd, match.index))
     const matchedName = match[0]
-    const highlight = uniqueHighlights.find(h => h.name.toLowerCase() === matchedName.toLowerCase())
-    const style: React.CSSProperties = highlight?.color
+    const highlight = unique.find(h => h.name.toLowerCase() === matchedName.toLowerCase())
+    if (!highlight) {
+      parts.push(matchedName)
+      lastEnd = match.index + matchedName.length
+      continue
+    }
+    const style: React.CSSProperties = highlight.color
       ? { backgroundColor: `${highlight.color}20`, borderColor: highlight.color }
       : {}
+    const kind = highlight.kind
     parts.push(
-      <span key={match.index} className="highlighted-name" style={style} onClick={() => {
+      <span key={match.index} className="highlighted-name" data-kind={kind} style={style} onClick={() => {
         const panel = document.querySelector('.char-panel')
-        const charTab = panel?.querySelector('.char-tab:nth-child(3)') as HTMLButtonElement
-        const locTab = panel?.querySelector('.char-tab:nth-child(4)') as HTMLButtonElement
-        const isChar = characters.some(c => c.name.toLowerCase() === matchedName.toLowerCase())
-        if (isChar && charTab) { charTab.click(); }
-        else if (locTab) { locTab.click(); }
+        // Tabs are: 1=features, 2=inventory, 3=characters, 4=locations.
+        const tabSelector = kind === 'character'
+          ? '.char-tab:nth-child(3)'
+          : '.char-tab:nth-child(4)'
+        const tab = panel?.querySelector(tabSelector) as HTMLButtonElement | null
+        tab?.click()
+        // Surface the matched entity by name on a custom event the panel listens to.
+        panel?.dispatchEvent(new CustomEvent('focus-entity', { detail: { kind, name: matchedName } }))
         panel?.scrollIntoView({ behavior: 'smooth' })
       }}>
         {matchedName}
@@ -378,9 +512,7 @@ function highlightNames(text: string, characters: SideCharacter[], locations: Lo
     lastEnd = match.index + matchedName.length
   }
 
-  if (lastEnd < text.length) {
-    parts.push(text.slice(lastEnd))
-  }
+  if (lastEnd < text.length) parts.push(text.slice(lastEnd))
 
   return parts.length > 0 ? parts : text
 }

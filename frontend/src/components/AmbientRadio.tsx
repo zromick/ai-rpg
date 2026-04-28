@@ -174,7 +174,9 @@ export default function AmbientRadio({ scenarioTitle, isBattle, isRomance, isWin
 const audioRef = useRef<HTMLAudioElement>(null)
 const [playing, setPlaying] = useState(false)
 const [stationIdx, setStationIdx] = useState(0)
-const [volume, setVolume] = useState(0.25)
+// Halved from the previous 0.25 default so the radio sits quietly under the
+// prose rather than competing with the narration.
+const [volume, setVolume] = useState(0.125)
 const [lastMode, setLastMode] = useState('')
 
 const baseStations = SCENARIO_STATIONS[scenarioTitle] ?? DEFAULT_STATIONS
@@ -228,21 +230,30 @@ const toggle = () => {
   setPlaying(!playing)
 }
 
-const switchStation = async (idx: number) => {
+const switchStation = (idx: number) => {
+  // Switching stations rebinds the <audio> src via React's setStationIdx.
+  // The previous version called play() synchronously after load(), but the
+  // browser hasn't yet started buffering the new URL — Chrome silently no-ops
+  // the play promise and the user sees a paused indicator. Instead we wait
+  // for the next 'canplay' event, then play, and let the play() promise
+  // resolve naturally (autoplay is allowed because the user just clicked).
   if (!audioRef.current) return
-  const wasPlaying = playing
-  audioRef.current.pause()
   setStationIdx(idx)
-  audioRef.current.load()
-  audioRef.current.volume = volume
-  if (wasPlaying) {
-    try {
-      await audioRef.current.play()
-      setPlaying(true)
-    } catch {
-      setPlaying(false)
+  // Defer the play call until React has re-rendered with the new src and the
+  // audio element has fired canplay.
+  requestAnimationFrame(() => {
+    const el = audioRef.current
+    if (!el) return
+    el.volume = volume
+    const start = () => {
+      el.play().then(() => setPlaying(true)).catch(() => setPlaying(false))
     }
-  }
+    if (el.readyState >= 3) {
+      start()
+    } else {
+      el.addEventListener('canplay', start, { once: true })
+    }
+  })
 }
 
 const onVolume = (v: number) => {

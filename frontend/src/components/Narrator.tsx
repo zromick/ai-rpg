@@ -1,6 +1,12 @@
 // src/components/Narrator.tsx
 import { useState, useRef, useEffect } from 'react'
-import { NARRATION_SERVICES, DEFAULT_NARRATION_SERVICE_ID, getNarrationService } from '../narrationService'
+import {
+  NARRATION_SERVICES,
+  DEFAULT_NARRATION_SERVICE_ID,
+  getNarrationService,
+  isWebSpeechUrl,
+  parseWebSpeechUrl,
+} from '../narrationService'
 
 interface NarratorProps {
   enabled: boolean
@@ -10,6 +16,7 @@ interface NarratorProps {
 export default function Narrator({ enabled, lastGMRply }: NarratorProps) {
   const audioRef = useRef<HTMLAudioElement>(null)
   const lastNarratedRef = useRef('')
+  const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null)
   const [currentServiceId, setCurrentServiceId] = useState(DEFAULT_NARRATION_SERVICE_ID)
   const [playing, setPlaying] = useState(false)
   const [audioSrc, setAudioSrc] = useState<string | null>(null)
@@ -21,20 +28,75 @@ export default function Narrator({ enabled, lastGMRply }: NarratorProps) {
   const canPrev = services.length > 1
   const canNext = services.length > 1
 
+  const service = getNarrationService(currentServiceId)
+
+  const stopWebSpeech = () => {
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      window.speechSynthesis.cancel()
+    }
+    utteranceRef.current = null
+  }
+
+  const stop = () => {
+    stopWebSpeech()
+    if (audioRef.current) {
+      audioRef.current.pause()
+      audioRef.current.currentTime = 0
+    }
+    setPlaying(false)
+    if (audioSrc && !isWebSpeechUrl(audioSrc)) {
+      URL.revokeObjectURL(audioSrc)
+    }
+    setAudioSrc(null)
+  }
+
   const switchService = (idx: number) => {
     stop()
     setCurrentServiceId(services[idx].id)
   }
 
-  const service = getNarrationService(currentServiceId)
+  const speakWebSpeech = (text: string, url: string) => {
+    if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
+      console.warn('Web Speech API not available')
+      setPlaying(false)
+      return
+    }
+    stopWebSpeech()
+    const params = parseWebSpeechUrl(url)
+    const utterance = new SpeechSynthesisUtterance(text)
+    utterance.rate = params.rate
+    utterance.pitch = params.pitch
+    utterance.volume = volume
+    utterance.onend = () => {
+      setPlaying(false)
+      utteranceRef.current = null
+    }
+    utterance.onerror = () => {
+      setPlaying(false)
+      utteranceRef.current = null
+    }
+    utteranceRef.current = utterance
+    setPlaying(true)
+    window.speechSynthesis.speak(utterance)
+  }
 
   const narrate = async (text?: string) => {
     if (!enabled || loading) return
+    // Prefer the explicit text; otherwise replay the last GM passage. Only fall
+    // back to the demo string if there's no story yet (turn 0 before any reply).
+    const speakText = text
+      ?? (lastGMRply && lastGMRply.trim())
+      ?? "This is a test of the narration voice. The game master will read responses aloud."
     setLoading(true)
     try {
-      const url = await service.fetchAudio(text ?? "This is a test of the narration voice. The game master will read responses aloud.")
-      setAudioSrc(url)
-      setPlaying(true)
+      const url = await service.fetchAudio(speakText)
+      if (isWebSpeechUrl(url)) {
+        setAudioSrc(null)
+        speakWebSpeech(speakText, url)
+      } else {
+        setAudioSrc(url)
+        setPlaying(true)
+      }
     } catch (e) {
       console.error('Narrator error:', e)
     }
@@ -44,26 +106,22 @@ export default function Narrator({ enabled, lastGMRply }: NarratorProps) {
   useEffect(() => {
     if (!enabled || !lastGMRply || lastGMRply === lastNarratedRef.current || loading) return
     lastNarratedRef.current = lastGMRply
-    narrate()
+    narrate(lastGMRply)
   }, [lastGMRply, enabled])
 
-  const pause = () => {
-    if (audioRef.current) {
-      audioRef.current.pause()
-    }
-    setPlaying(false)
-  }
+  useEffect(() => {
+    return () => stopWebSpeech()
+  }, [])
 
-  const stop = () => {
+  const pause = () => {
+    if (utteranceRef.current && typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      window.speechSynthesis.cancel()
+      utteranceRef.current = null
+    }
     if (audioRef.current) {
       audioRef.current.pause()
-      audioRef.current.currentTime = 0
     }
     setPlaying(false)
-    if (audioSrc) {
-      URL.revokeObjectURL(audioSrc)
-      setAudioSrc(null)
-    }
   }
 
   const onVolume = (v: number) => {
@@ -75,8 +133,8 @@ export default function Narrator({ enabled, lastGMRply }: NarratorProps) {
 
   return (
     <div className="narrator-panel">
-      {audioSrc && (
-        <audio ref={audioRef} src={audioSrc} onEnded={stop} />
+      {audioSrc && !isWebSpeechUrl(audioSrc) && (
+        <audio ref={audioRef} src={audioSrc} autoPlay onEnded={() => setPlaying(false)} />
       )}
 
       <div className="narrator-controls">
@@ -86,7 +144,7 @@ export default function Narrator({ enabled, lastGMRply }: NarratorProps) {
           </button>
         )}
         {!playing ? (
-          <button onClick={() => narrate("This is a test of the narration voice...")} className="narrator-play-btn" title="Test narration" disabled={loading}>
+          <button onClick={() => narrate()} className="narrator-play-btn" title="Replay the last passage" disabled={loading}>
             {loading ? '…' : '▶'}
           </button>
         ) : (

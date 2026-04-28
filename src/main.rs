@@ -30,16 +30,22 @@ const HF_API_BASE: &str = "https://router.huggingface.co";
 struct ModelOption { label: &'static str, id: &'static str }
 
 fn available_models() -> Vec<ModelOption> {
+    // The HF Inference Providers router only serves models that the current
+    // free-tier providers (Together AI, Fireworks, Hyperbolic, etc.) actually
+    // host. The list below is ordered with the currently-most-likely-available
+    // options first; if the user gets `model_not_found`, switching down the
+    // list in Settings is usually enough to get unstuck.
     vec![
-        ModelOption { label: "Llama 3.1 8B Instruct (default)", id: "meta-llama/Llama-3.1-8B-Instruct" },
-        ModelOption { label: "Gemma 2 9B IT",                   id: "google/gemma-2-9b-it" },
-        ModelOption { label: "Mistral 7B v0.3",                 id: "mistralai/Mistral-7B-Instruct-v0.3" },
-        ModelOption { label: "Mistral Nemo 2407",              id: "mistralai/Mistral-Nemo-Instruct-2407" },
-        ModelOption { label: "Zephyr 7B Beta",                  id: "HuggingFaceH4/zephyr-7b-beta" },
-        ModelOption { label: "Hermes 3 Llama 3.1 8B",           id: "NousResearch/Hermes-3-Llama-3.1-8B" },
-        ModelOption { label: "Llama 3.1 8B Abliterated",        id: "chaldene/Llama-3.1-8B-Instruct-Abliterated" },
-        ModelOption { label: "Mixtral 8x7B",                    id: "mistralai/Mixtral-8x7B-Instruct-v0.1" },
-        ModelOption { label: "Phi-3 Medium 128k",               id: "microsoft/Phi-3-medium-128k-instruct" },
+        ModelOption { label: "Llama 3.3 70B Instruct (default)", id: "meta-llama/Llama-3.3-70B-Instruct" },
+        ModelOption { label: "Qwen 2.5 72B Instruct",            id: "Qwen/Qwen2.5-72B-Instruct" },
+        ModelOption { label: "Mistral Nemo 2407",                id: "mistralai/Mistral-Nemo-Instruct-2407" },
+        ModelOption { label: "Llama 3.1 8B Instruct",            id: "meta-llama/Llama-3.1-8B-Instruct" },
+        ModelOption { label: "Gemma 2 9B IT",                    id: "google/gemma-2-9b-it" },
+        ModelOption { label: "Mistral 7B v0.3",                  id: "mistralai/Mistral-7B-Instruct-v0.3" },
+        ModelOption { label: "Zephyr 7B Beta",                   id: "HuggingFaceH4/zephyr-7b-beta" },
+        ModelOption { label: "Hermes 3 Llama 3.1 8B",            id: "NousResearch/Hermes-3-Llama-3.1-8B" },
+        ModelOption { label: "Mixtral 8x7B",                     id: "mistralai/Mixtral-8x7B-Instruct-v0.1" },
+        ModelOption { label: "Phi-3 Medium 128k",                id: "microsoft/Phi-3-medium-128k-instruct" },
     ]
 }
 
@@ -197,6 +203,9 @@ struct PlayerSession {
     character: CharacterFeatures,
     last_gm_reply: String,
     world: WorldState,
+    /// Last set of AI-suggested actions (3 strings) the user can pick by typing
+    /// 1/2/3, or 4 to re-roll. Cleared once the player takes any action.
+    assistant_options: Vec<String>,
 }
 
 impl PlayerSession {
@@ -215,12 +224,14 @@ impl PlayerSession {
             character: CharacterFeatures::random(seed),
             last_gm_reply: String::new(),
             world,
+            assistant_options: Vec::new(),
         }
     }
     fn restart(&mut self) {
         self.history = vec![Message { role: "system".to_string(), content: self.system_prompt.clone() }];
         self.stats.prompt_count = 0; self.stats.total_chars = 0; self.stats.prompt_log.clear();
         self.last_gm_reply = String::new();
+        self.assistant_options.clear();
         let start = self.world.start_datetime.clone().unwrap_or_default();
         self.world = WorldState::default();
         self.world.start_datetime = Some(start.clone());
@@ -286,6 +297,7 @@ fn write_state(gs: &GameState, sessions: &HashMap<String, PlayerSession>, active
             "romance_mode": s.world.romance_mode,
             "turn": s.world.turn,
             "history": s.history.iter().filter(|m| m.role != "system").collect::<Vec<_>>(),
+            "assistant_options": s.assistant_options,
         })
     }).collect();
     let sqs: Vec<Value> = gs.side_quests.iter().map(|q| json!({"title":q.title,"description":q.description,"steps":q.steps})).collect();
@@ -314,6 +326,9 @@ fn drain_queue() -> Vec<QueuedCommand> {
     let raw = match std::fs::read_to_string(CMD_FILE) { Ok(s) => s, Err(_) => return vec![] };
     let cmds: Vec<QueuedCommand> = serde_json::from_str(&raw).unwrap_or_default();
     let _ = std::fs::write(CMD_FILE, "[]");
+    if !cmds.is_empty() {
+        eprintln!("[queue] drained {} command(s) from {}", cmds.len(), CMD_FILE);
+    }
     cmds
 }
 
@@ -324,17 +339,329 @@ fn drain_queue() -> Vec<QueuedCommand> {
 #[derive(Deserialize)] struct HFMsg { content: String }
 #[derive(Deserialize)] struct HFResp { choices: Vec<HFChoice> }
 
+/// Some models — especially smaller Llama variants — return a reply that
+/// repeats itself either as two near-identical halves or as the same sentence
+/// twice in a row. This helper applies both checks: first it scans for any
+/// substring that occurs back-to-back with itself (covers the "Crashing waves
+/// fill your mouthCrashing waves fill your mouth" pattern), then it dedupes
+/// consecutive identical sentences. Comparison ignores whitespace and case so
+/// minor punctuation drift doesn't defeat the check.
+fn deduplicate_self_repeat(reply: &str) -> String {
+    let trimmed = reply.trim();
+    if trimmed.len() < 30 { return trimmed.to_string(); }
+
+    let normalize = |s: &str| -> String {
+        s.chars().filter(|c| !c.is_whitespace()).flat_map(char::to_lowercase).collect()
+    };
+
+    // Pass 1: substring-doubled detection — find the longest k such that the
+    // first k normalized chars equal the next k. If k is ≥30 chars (or ≥40%
+    // of the reply), we treat the second copy as a hallucinated repeat and
+    // truncate at a sentence boundary just past the first copy.
+    let norm = normalize(trimmed);
+    let n = norm.len();
+    if n >= 30 {
+        let max_k = n / 2;
+        // Walk down from the largest plausible repeat (n/2) and look for the
+        // largest k where norm[..k] == norm[k..2k]. Bail out as soon as we
+        // hit a hit because that's the dominant repeat.
+        for k in (30..=max_k).rev() {
+            if &norm[..k] == &norm[k..2 * k] {
+                // Find the sentence-terminating byte offset in the original
+                // text that corresponds to roughly k normalized chars.
+                let mut consumed = 0usize;
+                let mut cut = trimmed.len();
+                for (i, c) in trimmed.char_indices() {
+                    if consumed >= k {
+                        // Walk forward to the next sentence terminator so we
+                        // don't slice mid-word. If there's no terminator,
+                        // fall through and use the current position.
+                        cut = trimmed[i..]
+                            .find(|cc: char| matches!(cc, '.' | '!' | '?'))
+                            .map(|j| i + j + 1)
+                            .unwrap_or(i);
+                        break;
+                    }
+                    if !c.is_whitespace() {
+                        consumed += c.to_lowercase().count();
+                    }
+                }
+                return trimmed[..cut].trim().to_string();
+            }
+        }
+    }
+
+    // Pass 2: consecutive-sentence dedup. Splits on .!? then drops any
+    // sentence that is a normalized duplicate of the immediately preceding
+    // one. Joins back with single spaces.
+    let sentences: Vec<&str> = trimmed
+        .split_inclusive(|c: char| matches!(c, '.' | '!' | '?'))
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .collect();
+    if sentences.len() < 2 { return trimmed.to_string(); }
+    let mut kept: Vec<&str> = Vec::with_capacity(sentences.len());
+    let mut last_norm: String = String::new();
+    for s in &sentences {
+        let n = normalize(s);
+        if n == last_norm { continue; }
+        last_norm = n;
+        kept.push(s);
+    }
+    if kept.len() == sentences.len() { return trimmed.to_string(); }
+    kept.join(" ")
+}
+
+/// HF's inference API is case-sensitive on model IDs. If the configured model
+/// matches a known option case-insensitively but with the wrong casing, repair
+/// it before the request goes out — otherwise we get `model_not_found` even
+/// though the user picked a valid model from our list.
+fn normalize_model_id(model: &str) -> String {
+    let lower = model.to_lowercase();
+    for opt in available_models() {
+        if opt.id.to_lowercase() == lower {
+            return opt.id.to_string();
+        }
+    }
+    model.to_string()
+}
+
 fn call_hf(client: &Client, key: &str, model: &str, msgs: &[Message], max_tokens: u32) -> Result<String, Box<dyn std::error::Error>> {
     let url  = format!("{}/v1/chat/completions", HF_API_BASE);
+    let model = normalize_model_id(model);
+    // Roll up the prompt size so the player can see what's being shipped to HF
+    // every turn — useful when debugging slow or failing calls.
+    let prompt_chars: usize = msgs.iter().map(|m| m.content.chars().count()).sum();
+    let started = std::time::Instant::now();
+    eprintln!("[hf-call] → model={} max_tokens={} prompt_chars={} messages={}", model, max_tokens, prompt_chars, msgs.len());
     let body = json!({ "model": model, "messages": msgs.iter().map(|m| json!({"role":m.role,"content":m.content})).collect::<Vec<_>>(), "max_tokens": max_tokens, "temperature": 0.85, "top_p": 0.95 });
     let resp = client.post(&url).header("Authorization", format!("Bearer {}", key)).header("Content-Type","application/json").json(&body).send()?;
     let status = resp.status(); let text = resp.text()?;
-    if !status.is_success() { let err = format!("API {} Bad Request : {}", status, text); eprintln!("[RUST] [ERROR] {}", err); let _ = std::fs::write(ERROR_FILE, serde_json::to_string(&json!({"error": err})).unwrap_or_default()); return Err(err.into()); }
+    let elapsed_ms = started.elapsed().as_millis();
+    if !status.is_success() {
+        let err = format!("API {} Bad Request : {}", status, text);
+        eprintln!("[hf-call] ✗ FAIL model={} status={} elapsed={}ms body={}", model, status, elapsed_ms, &text[..text.len().min(400)]);
+        let _ = std::fs::write(ERROR_FILE, serde_json::to_string(&json!({"error": err})).unwrap_or_default());
+        return Err(err.into());
+    }
     let r: HFResp = serde_json::from_str(&text).map_err(|e| format!("parse: {} | {}", e, &text[..text.len().min(300)]))?;
-    r.choices.into_iter().next().map(|c| c.message.content.trim().to_string()).ok_or_else(|| "empty response".into())
+    let reply = r.choices.into_iter().next().map(|c| c.message.content.trim().to_string()).ok_or_else(|| "empty response".to_string())?;
+    eprintln!("[hf-call] ✓ ok model={} elapsed={}ms reply_chars={}", model, elapsed_ms, reply.chars().count());
+    Ok(reply)
+}
+
+/// Wraps `call_hf` for GM responses with a soft 200-character cap. The base
+/// prompt is augmented with a brevity instruction; if the model still overshoots
+/// (>250 chars) we make a *second* call asking it to summarise its own reply
+/// down to ≤200 characters while preserving the story beats. The summary
+/// becomes the canonical reply that's stored in history and shown to the user.
+const RESPONSE_CHAR_LIMIT: usize = 200;
+const RESPONSE_CHAR_HARD_CAP: usize = 250;
+
+fn call_hf_capped(client: &Client, key: &str, model: &str, msgs: &[Message]) -> Result<String, Box<dyn std::error::Error>> {
+    let mut augmented: Vec<Message> = msgs.to_vec();
+    // Append a per-turn brevity nudge as a system message so it doesn't pollute
+    // the canonical history we pass back. We work on a clone.
+    augmented.push(Message {
+        role: "system".to_string(),
+        content: format!(
+            "BREVITY RULE: Reply in roughly {RESPONSE_CHAR_LIMIT} characters or fewer. \
+Tighten prose. End on a clear hook for the player. Never exceed {RESPONSE_CHAR_HARD_CAP} characters."
+        ),
+    });
+
+    let reply = deduplicate_self_repeat(&call_hf(client, key, model, &augmented, 1024)?);
+    if reply.chars().count() <= RESPONSE_CHAR_HARD_CAP {
+        return Ok(reply);
+    }
+
+    // Second pass: ask the model to summarise its own reply.
+    eprintln!("  [brevity] reply was {} chars; summarising to ≤{}", reply.chars().count(), RESPONSE_CHAR_LIMIT);
+    let summary_msgs = vec![
+        Message {
+            role: "system".to_string(),
+            content: format!(
+                "You are a literary editor. Rewrite the provided GM passage in {RESPONSE_CHAR_LIMIT} characters or fewer, \
+preserving every named character, location, and key story beat. Keep the tone of the original. \
+Output ONLY the rewritten passage — no preamble, no quotation marks, no metadata. Never exceed {RESPONSE_CHAR_HARD_CAP} characters."
+            ),
+        },
+        Message { role: "user".to_string(), content: format!("Rewrite this:\n\n{}", reply) },
+    ];
+    match call_hf(client, key, model, &summary_msgs, 256) {
+        Ok(s) if !s.trim().is_empty() => Ok(deduplicate_self_repeat(s.trim())),
+        _ => Ok(reply), // fall back to the long version rather than dropping the turn
+    }
+}
+
+// ─── AI Assistant: suggest 3 actions based on the current scene ───────────────
+
+/// Generate three short, context-aware suggested actions for the player based
+/// on the GM's last reply. Returns the parsed list (up to 3 entries) or empty
+/// on any failure. The model is instructed to output one suggestion per line,
+/// so this is just a quick second-pass call.
+fn generate_assistant_options(client: &Client, key: &str, model: &str, last_gm_reply: &str) -> Vec<String> {
+    if last_gm_reply.trim().is_empty() { return Vec::new(); }
+    eprintln!("[assistant-call] generating 3 options model={} ctx_chars={}", model, last_gm_reply.chars().count());
+    let sys = "You are a helpful suggestion engine for a text-based RPG. Given the GM's most recent message, you must propose three distinct, short actions the player could plausibly take next. Each action must be 4–12 words, written in second person, beginning with a verb. Output exactly three lines, one suggestion per line. No numbering, no preamble, no commentary. Just three lines.";
+    let user = format!("GM: {}\n\nReturn three suggested actions, one per line.", last_gm_reply);
+    let msgs = vec![
+        Message { role: "system".to_string(), content: sys.to_string() },
+        Message { role: "user".to_string(), content: user },
+    ];
+    match call_hf(client, key, model, &msgs, 256) {
+        Ok(text) => text
+            .lines()
+            .map(|l| l.trim().trim_start_matches(|c: char| c.is_ascii_digit() || matches!(c, '.' | ')' | '-' | '*' | ':')).trim().to_string())
+            .filter(|l| !l.is_empty())
+            .take(3)
+            .collect(),
+        Err(_) => Vec::new(),
+    }
+}
+
+/// True if the AI Assistant common rule is currently active.
+fn assistant_enabled(gs: &GameState) -> bool {
+    gs.settings.common_rules.iter().any(|r| r.label == "AI Assistant" && r.active)
+}
+
+/// Schema-placeholder fragments the model occasionally parrots back verbatim
+/// instead of filling in real values ("item name", "full name (first and last)",
+/// etc.). If any of these substrings appears inside an extracted field we treat
+/// the entry as garbage and drop it.
+const SCHEMA_PLACEHOLDER_FRAGMENTS: &[&str] = &[
+    "item name",
+    "number or description",
+    "condition or context",
+    "full name (first and last)",
+    "2 sentences describing physical appearance",
+    "2 sentences describing the atmosphere",
+    "ally|enemy|neutral|unknown",
+    "place name",
+    "what they're wearing",
+    "slender/muscular",
+    "young/middle-aged",
+    "male/female/etc",
+    "#rrggbb",
+];
+
+fn looks_like_schema_placeholder(s: &str) -> bool {
+    let lower = s.trim().to_lowercase();
+    if lower.is_empty() { return false; }
+    SCHEMA_PLACEHOLDER_FRAGMENTS.iter().any(|frag| lower.contains(frag))
+}
+
+fn inventory_item_is_placeholder(item: &InventoryItem) -> bool {
+    looks_like_schema_placeholder(&item.name)
+        || looks_like_schema_placeholder(&item.quantity)
+        || looks_like_schema_placeholder(&item.note)
+}
+
+fn side_character_is_placeholder(c: &SideCharacter) -> bool {
+    looks_like_schema_placeholder(&c.name)
+        || looks_like_schema_placeholder(&c.description)
+        || looks_like_schema_placeholder(&c.relation)
+}
+
+fn location_is_placeholder(l: &Location) -> bool {
+    looks_like_schema_placeholder(&l.name) || looks_like_schema_placeholder(&l.description)
+}
+
+/// Parse a scenario's `user_inventory` string ("Rusted spoon, threadbare tunic,
+/// 3 copper coins") into structured InventoryItems so the player has gear from
+/// turn 0 instead of waiting for the model to materialise the list. Quantity is
+/// pulled out of leading digits when present, otherwise defaults to "1".
+fn parse_starting_inventory(raw: &str) -> Vec<InventoryItem> {
+    raw.split(',')
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(|entry| {
+            let mut quantity = String::from("1");
+            let mut name = entry.to_string();
+            let mut chars = entry.chars();
+            let leading_num: String = chars.by_ref().take_while(|c| c.is_ascii_digit()).collect();
+            if !leading_num.is_empty() {
+                let rest: String = entry[leading_num.len()..].trim_start().to_string();
+                if !rest.is_empty() {
+                    quantity = leading_num;
+                    name = rest;
+                }
+            }
+            InventoryItem { name, quantity, note: String::new() }
+        })
+        .collect()
 }
 
 // ─── Extraction ───────────────────────────────────────────────────────────────
+
+/// Common English words that the LLM occasionally tries to register as
+/// characters or locations. We filter these post-extraction to keep the JSON
+/// output usable even if the prompt-side rules are partially ignored.
+const NAME_STOPWORDS: &[&str] = &[
+    "the", "a", "an", "you", "i", "he", "she", "it", "they", "we", "me", "us",
+    "this", "that", "these", "those", "my", "your", "his", "her", "their",
+    "sir", "lady", "lord", "miss", "mr", "mrs",
+];
+
+fn is_name_stopword(name: &str) -> bool {
+    let trimmed = name.trim();
+    if trimmed.len() < 2 { return true; }
+    let lower = trimmed.to_lowercase();
+    if NAME_STOPWORDS.contains(&lower.as_str()) { return true; }
+    // Drop "names" that are entirely a stopword token followed by a non-letter.
+    let first_word = lower.split_whitespace().next().unwrap_or("");
+    NAME_STOPWORDS.contains(&first_word) && lower.split_whitespace().count() == 1
+}
+
+/// Two names refer to the same entity when one is a substring of the other
+/// (case-insensitive, whole-word-aware on at least one side). Examples:
+///   "John" ↔ "John Smith"           → same
+///   "Aldric Shadowmere" ↔ "Aldric"  → same
+///   "Tavern" ↔ "The Sleeping Tavern"→ same
+///   "Aldric" ↔ "Aldric's Tavern"    → same (location includes character name; we keep the longer one)
+fn names_overlap(a: &str, b: &str) -> bool {
+    let a = a.trim().to_lowercase();
+    let b = b.trim().to_lowercase();
+    if a.is_empty() || b.is_empty() { return false; }
+    if a == b { return true; }
+    // Substring containment with word-boundary check: "Al" should not match "Aldric"
+    // but "Aldric" should match "Aldric Shadowmere".
+    fn contains_word(haystack: &str, needle: &str) -> bool {
+        for (i, _) in haystack.match_indices(needle) {
+            let before_ok = i == 0 || !haystack.as_bytes()[i - 1].is_ascii_alphanumeric();
+            let end = i + needle.len();
+            let after_ok = end == haystack.len() || !haystack.as_bytes()[end].is_ascii_alphanumeric();
+            if before_ok && after_ok { return true; }
+        }
+        false
+    }
+    contains_word(&a, &b) || contains_word(&b, &a)
+}
+
+/// Collapse near-duplicates in a name-keyed list, preferring the longer name
+/// when two entries overlap (longer is usually richer — "Aldric Shadowmere"
+/// beats "Aldric"). Order is preserved otherwise.
+fn dedup_by_name<T, F>(items: Vec<T>, name_of: F) -> Vec<T>
+where F: Fn(&T) -> String {
+    let mut kept: Vec<T> = Vec::with_capacity(items.len());
+    for item in items {
+        let name = name_of(&item);
+        // Find an existing entry that overlaps with this one.
+        let dup_idx = kept.iter().position(|k| names_overlap(&name_of(k), &name));
+        match dup_idx {
+            Some(i) => {
+                let existing = name_of(&kept[i]);
+                // Replace existing only if the new name is strictly longer
+                // (more informative). Otherwise keep what we already have.
+                if name.len() > existing.len() {
+                    kept[i] = item;
+                }
+            }
+            None => kept.push(item),
+        }
+    }
+    kept
+}
 
 fn extract(client: &Client, key: &str, model: &str, action: &str, reply: &str, world: &WorldState) -> (WorldState, Option<String>, bool, Option<u32>) {
     let inv   = serde_json::to_string(&world.inventory).unwrap_or_default();
@@ -343,7 +670,11 @@ fn extract(client: &Client, key: &str, model: &str, action: &str, reply: &str, w
 
     let sys = r#"You are a JSON extraction engine for an RPG. You receive game events and return ONLY a raw JSON object — no markdown, no code fences, no explanation. Any deviation from pure JSON will cause a system error."#;
 
-let user = format!(r##"Player action: {action}
+let prev_battle = world.battle_mode;
+    let prev_romance = world.romance_mode;
+    let main_steps_hint = "(check the system prompt's main_quest_steps list for step numbers)";
+
+    let user = format!(r##"Player action: {action}
 GM response: {reply}
 
 Current inventory JSON: {inv}
@@ -351,6 +682,8 @@ Current side_characters JSON: {chars}
 Current locations JSON: {locs}
 Current in-game time: {curr_time}
 Current nicknames: {nicknames}
+Previous battle_mode: {prev_battle}
+Previous romance_mode: {prev_romance}
 
 Produce this exact JSON (all fields required, use the exact field names shown, do not hallucinate, do not make up answers):
 {{
@@ -375,8 +708,11 @@ Produce this exact JSON (all fields required, use the exact field names shown, d
 
 Critical rules (every one of these rules is important):
   1. COPY ALL existing entries from current arrays unless they explicitly changed.
-  2. ADD any new characters mentioned BY NAME in the GM response (guards, merchants, named NPCs, animals with roles). EXCLUDE the words "You" and "the" — do NOT add them as a character.
-  3. ADD the current location if it can be identified from context.
+  2. ADD any new characters mentioned BY NAME in the GM response (guards, merchants, named NPCs, animals with roles).
+     STRICT EXCLUSION LIST — never add as a character: "You", "the", "The", "I", "He", "She", "It", "They", "We",
+     "A", "An", "Sir", "Lady", "Lord", or any single-letter token. These are common English words, not names.
+     A character name MUST contain at least one capitalised proper noun that isn't on the exclusion list.
+  3. ADD the current location if it can be identified from context. Apply the same exclusion list — never add "The" or "You" as a location.
   4. last_visited must be the integer {turn}, not a string.
   5. current_datetime: Estimate the new in-game time based on time passing in the narrative. Advance time realistically — typically 15-60 minutes per action, more if resting/traveling. If time crosses midnight, advance the date. Format: '7 August 1200, 11:45 PM'.
   6. game_won: Set to true ONLY if the GM response explicitly shows the main quest is complete (e.g., "You are crowned as King", "You have escaped the island", "The curse is destroyed"). Otherwise false. This should be rare.
@@ -387,9 +723,11 @@ Critical rules (every one of these rules is important):
   11. DO NOT add duplicate characters with similar names (e.g., if "John Smith" exists, do NOT add just "John" as a new character).
   12. DO NOT add duplicate locations with the same name. If the location already exists, update its description only.
   13. new_nickname: If the GM response gives the player a nickname or title (e.g., "You are now called the Brave", "From this day forth, you shall be known as..."), extract it. Set to null if no new nickname is given. This becomes the current_nickname.
-  14. completed_quest_step: If the GM response shows completing a main quest step (e.g., player finds food/shelter, earns coin, gains foothold), set this to the 1-based step number completed. Otherwise null.
-  15. Return ONLY the JSON object starting with {{ — nothing before or after."##,
-        action=action, reply=reply, inv=inv, chars=chars, locs=locs, turn=world.turn+1, curr_time=world.current_datetime.as_deref().unwrap_or("unknown"), nicknames=world.nicknames.join(", "));
+  14. completed_quest_step: Look at BOTH the player action AND the GM response together. If the action+reply pair clearly resolves a step from the main quest steps {main_steps_hint} (e.g., player finds food and the GM confirms food was acquired; player negotiates with a guard and the GM confirms safe passage), set this to the 1-based step number completed. If neither the action NOR the reply shows a step finishing, return null. Do NOT mark a step done speculatively.
+  15. battle_mode: Look at BOTH the action AND the response. Set true if EITHER the player's action initiates combat/violence/threat (drawing weapons, attacking, fleeing under fire) OR the GM response describes active combat, weapon use, blood being spilled, or imminent physical danger. Set false if the scene becomes peaceful or the fight ends. If neither side indicates a change, keep the previous value ({prev_battle}).
+  16. romance_mode: Look at BOTH the action AND the response. Set true if EITHER the player initiates intimacy/flirtation OR the GM response describes mutual romantic intimacy, kissing, declarations of love, or an erotically charged scene. Set false when the moment passes. If neither side indicates a change, keep the previous value ({prev_romance}).
+  17. Return ONLY the JSON object starting with {{ — nothing before or after."##,
+        action=action, reply=reply, inv=inv, chars=chars, locs=locs, turn=world.turn+1, curr_time=world.current_datetime.as_deref().unwrap_or("unknown"), nicknames=world.nicknames.join(", "), prev_battle=prev_battle, prev_romance=prev_romance, main_steps_hint=main_steps_hint);
 
     let msgs = vec![
         Message { role: "system".to_string(), content: sys.to_string() },
@@ -411,9 +749,34 @@ Critical rules (every one of these rules is important):
             match serde_json::from_str::<Value>(json_str) {
                 Err(e) => { eprintln!("  [extract parse] {} | raw snippet: {}", e, &json_str[..json_str.len().min(400)]); (world.clone(), None, false, None) }
                 Ok(v) => {
-                    let new_inv:   Vec<InventoryItem>  = serde_json::from_value(v["inventory"].clone()).unwrap_or(world.inventory.clone());
-                    let new_chars: Vec<SideCharacter>  = serde_json::from_value(v["side_characters"].clone()).unwrap_or(world.side_characters.clone());
-                    let new_locs:  Vec<Location>       = serde_json::from_value(v["locations"].clone()).unwrap_or(world.locations.clone());
+                    let mut new_inv:   Vec<InventoryItem>  = serde_json::from_value(v["inventory"].clone()).unwrap_or(world.inventory.clone());
+                    let mut new_chars: Vec<SideCharacter>  = serde_json::from_value(v["side_characters"].clone()).unwrap_or(world.side_characters.clone());
+                    let mut new_locs:  Vec<Location>       = serde_json::from_value(v["locations"].clone()).unwrap_or(world.locations.clone());
+                    // Drop any entry where the model just parroted the schema's
+                    // placeholder text ("item name", "full name (first and last)",
+                    // etc.) instead of filling in a real value.
+                    new_inv.retain(|i| !inventory_item_is_placeholder(i));
+                    new_chars.retain(|c| !side_character_is_placeholder(c));
+                    new_locs.retain(|l| !location_is_placeholder(l));
+                    new_chars.retain(|c| !is_name_stopword(&c.name));
+                    new_locs.retain(|l| !is_name_stopword(&l.name));
+                    // Drop any side_character whose name overlaps with a
+                    // nickname the player already goes by — otherwise the
+                    // model re-extracts the player as an "unknown" NPC every
+                    // turn and the characters pane fills with duplicates of
+                    // the player themselves.
+                    new_chars.retain(|c| {
+                        !world.nicknames.iter().any(|nn| names_overlap(&c.name, nn))
+                    });
+                    // Same protection for inventory: filter out entries that
+                    // duplicate an existing inventory item by name (e.g. the
+                    // model re-emits the starting kit on every turn).
+                    new_inv = dedup_by_name(new_inv, |i| i.name.clone());
+                    // Collapse near-duplicates ("John" vs "John Smith") so the
+                    // characters/locations panes don't accumulate variants of
+                    // the same entity.
+                    new_chars = dedup_by_name(new_chars, |c| c.name.clone());
+                    new_locs  = dedup_by_name(new_locs,  |l| l.name.clone());
                     let curr_loc   = v["current_location"].as_str().filter(|s| !s.trim().is_empty() && *s != "null").map(str::to_string);
                     let curr_time = v["current_datetime"].as_str().filter(|s| !s.trim().is_empty() && *s != "null").map(str::to_string);
                     let clothing  = v["clothing_update"].as_str().filter(|s| !s.trim().is_empty() && *s != "null").map(str::to_string);
@@ -685,14 +1048,35 @@ fn opening_scene(client: &Client, key: &str, gs: &GameState, session: &mut Playe
     println!("  Generating opening scene for {}...", session.stats.name);
     let intro = format!("Begin the game. Deliver the opening scene exactly as written in your instructions. The player character looks like: {}. Weave their appearance naturally. Address the player as 'you'.", session.character.to_image_prompt());
     session.history.push(Message { role: "user".to_string(), content: intro });
-    match call_hf(client, key, &gs.model, &session.history, 1024) {
+    match call_hf_capped(client, key, &gs.model, &session.history) {
         Ok(reply) => {
             println!("\n{}\n", reply);
             session.last_gm_reply = reply.clone();
             session.history.push(Message { role: "assistant".to_string(), content: reply.clone() });
             print!("  [extracting world state...]"); io::stdout().flush().unwrap();
-            let (w, _, _, _) = extract(client, key, &gs.model, "game start", &reply, &session.world);
+            let (mut w, _, _, _) = extract(client, key, &gs.model, "game start", &reply, &session.world);
+            // The opening scene is narrative scene-setting, not combat or romance.
+            // Forcing both modes to false on turn 0 prevents the GM from accidentally
+            // marking the player as already-in-battle just because the prompt
+            // mentions a sword or a fight that's about to happen.
+            w.battle_mode = false;
+            w.romance_mode = false;
+            // Seed the player with the scenario's starting gear if the extract
+            // step came back empty — otherwise the inventory pane reads "(empty)"
+            // even when the scenario explicitly hands the player items.
+            if w.inventory.is_empty() {
+                if let Some(story) = story_prompts().iter().find(|s| s.title == gs.scenario_title) {
+                    let seeded = parse_starting_inventory(story.user_inventory);
+                    if !seeded.is_empty() {
+                        w.inventory = seeded;
+                    }
+                }
+            }
             session.world = w;
+            // If the AI Assistant rule is on, suggest the player's first three moves.
+            if assistant_enabled(gs) {
+                session.assistant_options = generate_assistant_options(client, key, &gs.model, &session.last_gm_reply);
+            }
             println!(" done.");
             let mut s2 = snap.clone(); s2.insert(session.stats.name.clone(), session.clone());
             write_state(gs, &s2, &session.stats.name);
@@ -704,6 +1088,68 @@ fn opening_scene(client: &Client, key: &str, gs: &GameState, session: &mut Playe
 // ─── Process action ───────────────────────────────────────────────────────────
 
 fn process_action(client: &Client, key: &str, gs: &mut GameState, sessions: &mut HashMap<String, PlayerSession>, name: &str, input: &str) {
+    // Log every action that reaches the engine. Truncated so a long action
+    // doesn't dominate the console, but enough to trace what the player typed.
+    let preview: String = input.chars().take(80).collect();
+    eprintln!("[action] player={} input=\"{}\"", name, preview);
+    // Resolve numeric shortcuts (1/2/3/4) when assistant options are pending.
+    // 1/2/3 → submit the corresponding option as the player's action.
+    // 4     → request a fresh assistant pass without taking an action.
+    let resolved_input = {
+        let trimmed = input.trim();
+        if let Some(s) = sessions.get(name) {
+            if !s.assistant_options.is_empty() {
+                match trimmed {
+                    "1" | "2" | "3" => {
+                        let idx: usize = trimmed.parse::<usize>().unwrap_or(1) - 1;
+                        s.assistant_options.get(idx).cloned()
+                    }
+                    "4" => Some("assistant".to_string()),
+                    _ => None,
+                }
+            } else { None }
+        } else { None }
+    };
+    let input_owned = resolved_input.unwrap_or_else(|| input.to_string());
+    let input = input_owned.as_str();
+
+    // Explicit assistant command — always available, regardless of the
+    // AI Assistant rule's on/off state.
+    let trimmed_lower = input.trim().to_lowercase();
+    if trimmed_lower == "assistant" || trimmed_lower == "a" {
+        // Pull the most recent GM context. `last_gm_reply` is the canonical
+        // source, but it can be empty right after a save is restored — fall
+        // back to the last assistant turn in history so the suggestion call
+        // still has something to work with.
+        let last_reply = sessions.get(name).map(|s| {
+            if !s.last_gm_reply.trim().is_empty() {
+                s.last_gm_reply.clone()
+            } else {
+                s.history.iter().rev()
+                    .find(|m| m.role == "assistant")
+                    .map(|m| m.content.clone())
+                    .unwrap_or_default()
+            }
+        }).unwrap_or_default();
+        eprintln!("[assistant] requested by {}; context={} chars", name, last_reply.len());
+        let options = generate_assistant_options(client, key, &gs.model, &last_reply);
+        if options.is_empty() {
+            // Silent empty options leave the UI stuck on "Asking…" forever.
+            // Surface the failure so the snackbar fires and the player knows
+            // to retry or swap models.
+            eprintln!("[assistant] no options returned (model={}, ctx_empty={})", gs.model, last_reply.trim().is_empty());
+            let msg = if last_reply.trim().is_empty() {
+                "Assistant has no scene context yet — take a turn first, then try again."
+            } else {
+                "Assistant couldn't suggest moves right now — try a different model from Settings or try again."
+            };
+            let _ = std::fs::write(ERROR_FILE, serde_json::to_string(&json!({"error": msg})).unwrap_or_default());
+        }
+        if let Some(s) = sessions.get_mut(name) { s.assistant_options = options; }
+        write_state(gs, sessions, name);
+        return;
+    }
+
     match input.trim().to_lowercase().as_str() {
         "quest"|"q" => { println!("♛ MAIN QUEST\n{}", gs.main_quest); return; }
         "sidequests"|"sidequest"|"sq" => {
@@ -775,10 +1221,13 @@ fn process_action(client: &Client, key: &str, gs: &mut GameState, sessions: &mut
     let n = session.stats.prompt_count;
     session.stats.prompt_log.push(PromptRecord { number: n, char_count: chars, full_text: input.to_string() });
     session.history.push(Message { role: "user".to_string(), content: input.to_string() });
+    // The previous turn's assistant suggestions are stale once the player
+    // chooses their next action. Clear them.
+    session.assistant_options.clear();
 
     println!("\n  [The GM responds...]\n");
     let hist = sessions[name].history.clone();
-    match call_hf(client, key, &gs.model, &hist, 1024) {
+    match call_hf_capped(client, key, &gs.model, &hist) {
         Ok(reply) => {
             println!("{}\n", reply);
             print!("  [updating world state...]"); io::stdout().flush().unwrap();
@@ -787,7 +1236,16 @@ fn process_action(client: &Client, key: &str, gs: &mut GameState, sessions: &mut
             println!(" done.");
             let s = sessions.get_mut(name).unwrap();
             s.last_gm_reply = reply.clone();
-            s.history.push(Message { role: "assistant".to_string(), content: reply });
+            // Backend-side dedup: don't append an assistant message that's
+            // identical to the previous assistant turn. This prevents the
+            // history from growing duplicate entries that the UI used to mask
+            // with its own dedup pass.
+            let last_assistant = s.history.iter().rev().find(|m| m.role == "assistant").map(|m| m.content.clone());
+            if last_assistant.as_deref() != Some(reply.as_str()) {
+                s.history.push(Message { role: "assistant".to_string(), content: reply });
+            } else {
+                eprintln!("  [dedup] skipped duplicate assistant reply");
+            }
             if let Some(c) = clothing { println!("  [clothing → {}]", c); s.character.clothing = c; }
             s.world = new_world;
             if let Some(step_num) = completed_step {
@@ -803,6 +1261,12 @@ fn process_action(client: &Client, key: &str, gs: &mut GameState, sessions: &mut
                 let end_time = s.world.current_datetime.clone().unwrap_or_else(|| "unknown".to_string());
                 eprintln!("\n[🎉] GAME WON! The player has completed the main quest!");
                 eprintln!("    End time: {}", end_time);
+            }
+            // If the AI Assistant rule is on, generate suggestions for the next turn.
+            if assistant_enabled(gs) {
+                let last_reply = sessions.get(name).map(|s| s.last_gm_reply.clone()).unwrap_or_default();
+                let options = generate_assistant_options(client, key, &gs.model, &last_reply);
+                if let Some(s) = sessions.get_mut(name) { s.assistant_options = options; }
             }
             write_state(gs, sessions, name);
         }
@@ -892,7 +1356,11 @@ fn game_loop(client: &Client, key: &str, gs: &mut GameState, sessions: &mut Hash
 // ─── Entry point ─────────────────────────────────────────────────────────────
 
 fn main() {
-    dotenv().ok();
+    // When launched via `npm run start`, the cwd is frontend/, so a bare
+    // dotenv() may miss the project-root .env. Try the project root first
+    // (anchored on CARGO_MANIFEST_DIR), then fall back to cwd.
+    let manifest_env = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(".env");
+    let _ = dotenvy::from_path(&manifest_env).or_else(|_| dotenv().map(|_| ()));
     let key = match std::env::var("HF_TOKEN") {
         Ok(k) if !k.is_empty() => { eprintln!("[game] HF_TOKEN loaded."); k }
         _ => { eprint!("HF_TOKEN not set. Enter key: "); io::stdout().flush().unwrap(); read_line("") }
